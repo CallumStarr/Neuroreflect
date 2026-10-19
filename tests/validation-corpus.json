@@ -1,0 +1,37 @@
+[
+  {
+    "id": "r1",
+    "lang": "en",
+    "text": "I always fail and everything is ruined. I feel awful and I can't stop replaying it. I keep thinking I messed everything up and I hate myself for it. I feel bad and stressed and ashamed, and I keep replaying what I said and what they thought and what I should have done. I am exhausted and I feel like I will always be this way.",
+    "rumination": true,
+    "fusionHigh": true
+  },
+  {
+    "id": "r2",
+    "lang": "en",
+    "text": "I am noticing the thought that I might fail, and I can ask for help and prepare one step at a time.",
+    "rumination": false,
+    "fusionHigh": false
+  },
+  {
+    "id": "r3",
+    "lang": "en",
+    "text": "I feel anticipatory dread before the meeting, tight chest and restless stomach, but I can still act on my values.",
+    "rumination": false,
+    "fusionHigh": false
+  },
+  {
+    "id": "r4",
+    "lang": "es",
+    "text": "Estoy muy estresado y todo saldrá mal; siempre arruino las cosas.",
+    "rumination": false,
+    "fusionHigh": true
+  },
+  {
+    "id": "r5",
+    "lang": "en",
+    "text": "I skipped the gym and avoided the call because I felt ashamed.",
+    "rumination": false,
+    "fusionHigh": false
+  }
+]

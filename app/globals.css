@@ -1,0 +1,198 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-serif: 'Literata Variable', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --font-sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+  background: #15120f;
+  color: #efe6d6;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(224, 170, 74, 0.32);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3b332b transparent;
+}
+
+:focus-visible {
+  outline: 2px solid #e0aa4a;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.nr-num {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Editor: textarea sits over a backdrop that paints highlights. Both must
+   share identical typography so the marks line up with the text. */
+.nr-block {
+  position: relative;
+}
+.nr-block textarea,
+.nr-block .nr-backdrop {
+  font-family: var(--font-serif);
+  font-size: 1.1875rem;
+  line-height: 2rem;
+  font-variation-settings: 'opsz' 18;
+  letter-spacing: 0.002em;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  tab-size: 4;
+}
+.nr-block textarea {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: #efe6d6;
+  caret-color: #e0aa4a;
+  outline: none;
+  display: block;
+}
+.nr-block textarea:focus-visible {
+  outline: none;
+}
+.nr-block textarea::placeholder {
+  color: #574c41;
+  font-style: italic;
+}
+.nr-block .nr-backdrop {
+  position: absolute;
+  inset: 0;
+  color: transparent;
+  pointer-events: none;
+}
+/* Highlights never change line height or wrapping: underline and wash only. */
+.nr-mark-fused {
+  border-bottom: 2px dotted rgba(224, 170, 74, 0.95);
+  background: rgba(224, 170, 74, 0.09);
+  border-radius: 2px;
+}
+.nr-mark-defused {
+  border-bottom: 2px solid rgba(127, 174, 132, 0.75);
+}
+.nr-mark-coarse {
+  border-bottom: 2px dashed rgba(111, 147, 217, 0.9);
+}
+.nr-mark-tag {
+  background: rgba(169, 189, 233, 0.13);
+  border-radius: 3px;
+}
+
+@keyframes nr-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+.nr-pulse {
+  animation: nr-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes nr-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.nr-rise {
+  animation: nr-rise 0.28s ease-out both;
+}
+
+/* Lock screen: the trace writes itself once. pathLength="1" on the path. */
+@keyframes nr-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.nr-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: nr-draw 1.4s cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+.nr-caret::after {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: #e0aa4a;
+  animation: nr-pulse 1s steps(2) infinite;
+}
+
+/* Search fields: a quiet clear button in the interface's muted ink. */
+input[type='search']::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 14px;
+  width: 14px;
+  cursor: pointer;
+  background: no-repeat center / 12px
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 2.5l7 7M9.5 2.5l-7 7' stroke='%23c4b49b' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+input[type='range'].nr-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: #3b332b;
+}
+input[type='range'].nr-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #e0aa4a;
+  border: 2px solid #15120f;
+  cursor: pointer;
+}
+input[type='range'].nr-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #e0aa4a;
+  border: 2px solid #15120f;
+  cursor: pointer;
+}

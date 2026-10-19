@@ -1,0 +1,35 @@
+[package]
+name = "neuroreflect"
+version = "0.1.0"
+description = "NeuroReflect, a private reflective journal that keeps everything on your computer"
+authors = ["NOAH Neurotech Ltd"]
+edition = "2024"
+rust-version = "1.90"
+publish = false
+
+[lib]
+name = "neuroreflect_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.3", features = [] }
+
+[dependencies]
+# 2.11.1 and later fix CVE-2026-42184 (remote pages treated as local on Windows).
+tauri = { version = "2.12.4", features = [] }
+# unsafe-headers lets lib/platform.ts send requests with no Origin header. Without
+# it every request carries the window's origin, which Ollama refuses on Windows.
+tauri-plugin-http = { version = "2.8.3", features = ["unsafe-headers"] }
+tauri-plugin-dialog = "2.8.3"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2.5.4"
+tauri-plugin-window-state = "2.5.0"
+
+# Smaller, faster release builds. Debug builds keep the defaults.
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
