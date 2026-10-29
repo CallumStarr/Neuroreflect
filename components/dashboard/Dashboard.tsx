@@ -107,7 +107,7 @@ export default function Dashboard() {
       <div className="mx-auto max-w-[1160px] px-10 pb-16 pt-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <h1 className="font-serif text-[1.9rem] text-paper-50" style={{ fontVariationSettings: "'opsz' 36" }}>
-            Psychological telemetry
+            Patterns in your writing
           </h1>
           <div role="radiogroup" aria-label="Time range" className="flex rounded-lg border border-ink-800 p-0.5">
             {RANGES.map((r) => (
@@ -124,6 +124,10 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+
+        <p className="mt-2 max-w-[70ch] text-[13px] leading-6 text-paper-500">
+          These measure the words you write, not you. They are not a test or a diagnosis, and the same day can read very differently depending on what you chose to write about.
+        </p>
 
         {/* Hero: the impact-bias number, the one figure this view leads with. */}
         <section className="mt-8 grid grid-cols-1 items-end gap-8 border-b border-ink-800 pb-8 lg:grid-cols-[1.2fr_2fr]">
@@ -152,7 +156,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 divide-x divide-ink-800 sm:grid-cols-4">
             <StatTile label="Entries" value={String(view.entries.length)} />
             <StatTile label="Words written" value={view.words.toLocaleString('en-GB')} />
-            <StatTile label="Rumination loops" value={String(view.loops.length)} note={`of ${view.tele.length} scored entries`} />
+            <StatTile label="Circling entries" value={String(view.loops.length)} note={`of ${view.tele.length} scored entries`} />
             <StatTile label="Average granularity" value={view.avgGran.toFixed(1)} note="precise words per 1,000" />
           </div>
         </section>
@@ -202,16 +206,16 @@ export default function Dashboard() {
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <ChartPanel
-            title="Emotional granularity"
-            description="Distinct, precise emotion concepts per 1,000 words, per entry. Higher means you are naming feelings more precisely."
+            title="Precise feeling words"
+            description="Distinct, precise feeling words per 1,000 words, per entry. Higher means you are naming feelings more precisely."
             table={<DataTable columns={['Date', 'Entry', 'Granularity']} rows={view.granularity.map((p) => [p.label, p.title, Number(p.value.toFixed(1))])} />}
           >
             {hasTelemetry ? <TrendLine data={view.granularity} unit="per 1,000 words" domain={[0, 40]} ticks={[0, 10, 20, 30, 40]} /> : <EmptyChart message="Write an entry to start the trend." />}
           </ChartPanel>
           <ChartPanel
-            title="Cognitive defusion"
-            description="Out of 100. Drops when you write absolute, fused statements; rises when you observe thoughts as thoughts."
-            table={<DataTable columns={['Date', 'Entry', 'Defusion']} rows={view.defusion.map((p) => [p.label, p.title, p.value])} />}
+            title="Distance from thoughts"
+            description="Out of 100. Drops when you write absolute statements as if they were simply true; rises when you write thoughts as thoughts you noticed."
+            table={<DataTable columns={['Date', 'Entry', 'Distance']} rows={view.defusion.map((p) => [p.label, p.title, p.value])} />}
           >
             {hasTelemetry ? <TrendLine data={view.defusion} unit="out of 100" domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} digits={0} /> : <EmptyChart message="Write an entry to start the trend." />}
           </ChartPanel>
@@ -220,7 +224,7 @@ export default function Dashboard() {
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <ChartPanel
             title="Self-focus and sense-making"
-            description="Share of words that are I, me, my, against causal and insight words. Loops tend to show high self-focus with little sense-making."
+            description="Share of words that are I, me, my, against causal and insight words. Circling entries tend to show high self-focus with little sense-making."
             legend={
               <>
                 <LegendItem color={CHART.warm} label="Self-focus" shape="line" />

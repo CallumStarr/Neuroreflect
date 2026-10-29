@@ -15,12 +15,16 @@ import { mergeExport } from '@/lib/sync';
 import { isDesktop } from '@/lib/platform';
 import { EXPORT_ITERATIONS, buildExport, decryptExport, downloadJSON, encryptExport, parseImportFile, restoreExport, wipeAll, type ParsedImport } from '@/lib/vault';
 import { useLockState } from '../useLockState';
+import FiguresSection from './FiguresSection';
+import GuidanceSection from './GuidanceSection';
 import LockSection from './LockSection';
+import PlannerSection from './PlannerSection';
 import TemplatesSection from './TemplatesSection';
+import WritingTimeSection from './WritingTimeSection';
 import { Section, fieldCls, inputCls } from './ui';
 
 const PROVIDERS: { id: ProviderId; label: string; blurb: string }[] = [
-  { id: 'heuristic', label: 'Built-in engine', blurb: 'No AI model. Questions and syntheses come from your own sentences and the telemetry. Fully offline.' },
+  { id: 'heuristic', label: 'Built-in engine', blurb: 'No AI model. Questions and syntheses come from your own sentences and the writing measures. Fully offline.' },
   { id: 'ollama', label: 'Ollama on this computer', blurb: 'A local model. Nothing leaves your machine.' },
   { id: 'anthropic', label: 'Anthropic (Claude)', blurb: 'Your own API key. Entry text is sent to Anthropic when you ask for a prompt, ask your journal a question in Recall, or finish an entry.' },
   { id: 'openai', label: 'OpenAI', blurb: 'Your own API key. Entry text is sent to OpenAI when you ask for a prompt, ask your journal a question in Recall, or finish an entry.' },
@@ -69,6 +73,10 @@ export default function Settings() {
               className={`${fieldCls} mt-1 max-w-xs`}
             />
           </Section>
+
+          <WritingTimeSection />
+
+          <GuidanceSection />
 
           <Section title="AI co-pilot" description="Every feature works with the built-in engine. A model adds more natural questions and syntheses.">
             <div className="grid gap-2" role="radiogroup" aria-label="AI provider">
@@ -178,9 +186,13 @@ export default function Settings() {
 
           <ValuesSection />
 
-          <Section title="Rumination circuit-breaker" description="All four conditions must hold at once. It never sends anything by itself; it changes the next prompt to a step-back one.">
+          <Section title="Step-back suggestion" description="A guess from word counts, not a validated measure. When all four conditions hold at once, Guided and Deep offer a step-back prompt you can ignore, and any question you ask for steps back rather than digging deeper. It never sends anything anywhere.">
             <Thresholds draft={draft} setDraft={setDraft} persist={persist} />
           </Section>
+
+          <PlannerSection />
+
+          <FiguresSection />
 
           <LockSection />
 
@@ -207,7 +219,7 @@ function Thresholds({ draft, setDraft, persist }: { draft: AppSettings; setDraft
   const rows: { key: keyof AppSettings['thresholds']; label: string; min: number; max: number; step: number; fmt: (v: number) => string }[] = [
     { key: 'minWords', label: 'Entry longer than', min: 50, max: 300, step: 10, fmt: (v) => `${v} words` },
     { key: 'iTalk', label: 'Self-focus above', min: 0.05, max: 0.2, step: 0.005, fmt: (v) => `${(v * 100).toFixed(1)}%` },
-    { key: 'negAffect', label: 'Negative affect above', min: 0.01, max: 0.1, step: 0.005, fmt: (v) => `${(v * 100).toFixed(1)}%` },
+    { key: 'negAffect', label: 'Negative feeling above', min: 0.01, max: 0.1, step: 0.005, fmt: (v) => `${(v * 100).toFixed(1)}%` },
     { key: 'cogProcMax', label: 'Sense-making below', min: 0.005, max: 0.06, step: 0.005, fmt: (v) => `${(v * 100).toFixed(1)}%` },
   ];
   return (
@@ -242,7 +254,7 @@ function Thresholds({ draft, setDraft, persist }: { draft: AppSettings; setDraft
       >
         Reset to defaults
       </button>
-      <p className="text-[12px] leading-5 text-paper-500">Defaults were calibrated on the sample entries: only the high-rumination one trips the breaker. Expect to tune them to your own writing.</p>
+      <p className="text-[12px] leading-5 text-paper-500">Defaults were calibrated on the sample entries: only the circling one trips the breaker. Expect to tune them to your own writing.</p>
     </div>
   );
 }
@@ -445,7 +457,7 @@ function VaultSection({ onRestored, lockOn }: { onRestored: () => Promise<void>;
 
         <div>
           <p className="text-[13px] text-paper-100">Import</p>
-          <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+          <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} data-testid="vault-import-input" />
           <button type="button" onClick={() => fileRef.current?.click()} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-3 py-2 text-[13px] text-paper-100 hover:bg-ink-900">
             <Upload size={14} /> Choose a NeuroReflect export
           </button>

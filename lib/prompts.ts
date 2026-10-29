@@ -6,7 +6,8 @@ import type { LensId, PromptTemplate } from './types';
 // customisation.
 
 export const SHARED_RULES = `You are a reflective-writing companion inside a private journal. You are not a therapist and you never diagnose.
-Ground everything you say in the person's own words and in the measured telemetry provided. Use plain, warm British English.
+Never describe what you offer as therapy or treatment, and never name a therapy such as CBT or ACT. Do not label the person with a condition or suggest they have one.
+Ground everything you say in the person's own words and in the measured writing signals provided. Use plain, warm British English.
 Never use en dashes or em dashes; use commas, full stops or hyphens.
 If the writing suggests the person may be at risk of harming themselves or someone else, set the reflective task aside, respond with care, and encourage them to contact a trusted person or a crisis line (in the UK, Samaritans on 116 123).`;
 
@@ -25,6 +26,14 @@ Rules: one sentence, ending in a question mark. No preamble, no advice, no summa
     body: `Context: the person's writing shows a rumination pattern (heavy first-person focus, high negative affect, little causal or insight language). Digging deeper would feed the loop.
 Task: offer ONE short invitation to step back, using either third-person self-distancing (address them by their name if given, e.g. "What would you tell Alex...") or temporal distancing ("How might you see this a year from now?").
 Rules: at most two sentences. Gentle, not clinical. End with a question.`,
+  },
+  {
+    id: 'concrete',
+    title: 'How, not why',
+    description: 'Used while the writing circles, alongside stepping back. Asks how exactly, never why.',
+    body: `Context: the person's writing shows a rumination pattern. Abstract "why" questions tend to feed it; concrete ones tend not to.
+Task: ask ONE question that brings them to a specific moment they described: what exactly happened, step by step, what they noticed, or exactly how they could handle the next moment like it.
+Rules: one sentence ending in a question mark. Never ask "why". No advice, no preamble.`,
   },
   {
     id: 'lens_stoic',
@@ -46,17 +55,17 @@ Rules: at most two sentences. Gentle, not clinical. End with a question.`,
   },
   {
     id: 'lens_cbt',
-    title: 'Lens: CBT thought record',
-    description: 'Situation, automatic thought, evidence for and against, balanced thought.',
-    body: `Task: draft a brief CBT-style thought record from the entry. Use these labels, one line each:
-"Situation:", "Automatic thought:", "Evidence for:", "Evidence against:", "A more balanced thought:".
+    title: 'Lens: thought check',
+    description: 'The situation, the thought, evidence for and against, and a more balanced thought.',
+    body: `Task: draft a brief thought check from the entry. Use these labels, one line each:
+"Situation:", "The thought:", "Evidence for:", "Evidence against:", "A more balanced thought:".
 Keep the person's wording where possible and mark anything you are inferring with "(guess)".`,
   },
   {
     id: 'lens_act',
-    title: 'Lens: ACT values check',
-    description: 'Looks at whether the day moved toward or away from stated values.',
-    body: `Task: run an ACT values check. Using the person's stated core values, reply in three short labelled lines:
+    title: 'Lens: values check',
+    description: 'Looks at whether the day moved toward or away from the values the person chose.',
+    body: `Task: run a values check. Using the person's stated core values, reply in three short labelled lines:
 "Moving toward:" actions in the entry that served a value
 "Moving away:" actions that served avoidance or comfort instead
 "One small step:" a concrete, values-based action for the next 24 hours.`,
@@ -69,7 +78,7 @@ Keep the person's wording where possible and mark anything you are inferring wit
     body: `Task: distil the finished entry. Respond with ONLY a JSON object, no prose, with exactly these string fields:
 "keyTakeaway": one sentence capturing the central realisation or theme,
 "hiddenAssumption": one sentence naming an assumption the person seems to be making, phrased tentatively,
-"microAction": one concrete action doable within 24 hours, under 20 words.`,
+"microAction": one concrete action for the next 24 hours, written as an if-then plan in the first person that starts with "When" and names the moment, for example "When I get home tomorrow, I'll ring Sam." Under 25 words.`,
   },
   {
     id: 'alignment',
@@ -104,9 +113,13 @@ export function lensTemplateId(lens: LensId): string {
   return `lens_${lens}`;
 }
 
-export const LENSES: { id: LensId; label: string; blurb: string }[] = [
-  { id: 'stoic', label: 'Dichotomy of control', blurb: 'What is mine to change, and what is not' },
-  { id: 'first_principles', label: 'First principles', blurb: 'Facts versus assumptions' },
-  { id: 'cbt', label: 'CBT thought record', blurb: 'Evidence for and against the thought' },
-  { id: 'act', label: 'ACT values check', blurb: 'Toward or away from what matters' },
+// A perspective is a way of looking at things whose evidence has not been
+// graded; the interface labels it so, rather than presenting it as a technique.
+export const LENSES: { id: LensId; label: string; blurb: string; perspective: boolean }[] = [
+  { id: 'stoic', label: 'Dichotomy of control', blurb: 'What is mine to change, and what is not', perspective: true },
+  { id: 'first_principles', label: 'First principles', blurb: 'Facts versus assumptions', perspective: true },
+  { id: 'cbt', label: 'Thought check', blurb: 'Evidence for and against a thought', perspective: false },
+  { id: 'act', label: 'Values check', blurb: 'Toward or away from what matters', perspective: false },
 ];
+
+export const PERSPECTIVE_NOTE = 'A perspective: a way of looking at things, not a tested technique.';

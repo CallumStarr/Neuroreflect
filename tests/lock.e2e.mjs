@@ -21,7 +21,7 @@ async function unlockWith(p, passphrase) {
 }
 
 async function openVault() {
-  await page.getByTitle('Vault (Alt+4)').click();
+  await page.getByTitle('Vault (Alt+5)').click();
   await page.getByRole('heading', { name: 'Settings and vault' }).waitFor();
 }
 
@@ -158,7 +158,8 @@ try {
   await page.getByLabel('Type erase to confirm').fill('erase');
   await shot('25-lock-forgotten');
   await page.getByRole('button', { name: 'Erase this journal' }).click();
-  await waitForJournal(page);
+  // An erased journal is a new one, so it opens on the welcome.
+  await page.getByTestId('welcome-dialog').waitFor({ timeout: 30000 });
   await page.waitForTimeout(600);
   check('erasing from the lock screen opens an empty journal without the lock', (await rail().getByText('Review meeting', { exact: true }).count()) === 0 && (await storageNote('Stored on this device').count()) === 1);
 } catch (err) {

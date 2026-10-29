@@ -524,7 +524,7 @@ export default function TimelineView({ hidden, range }: { hidden: Set<Kind>; ran
                 <button type="button" onClick={() => openEntry(e.id)} className="w-full rounded-lg p-3 text-left hover:bg-ink-900">
                   <span className="flex items-center gap-2 text-[11.5px] text-paper-500">
                     <span className="whitespace-nowrap">{formatDay(e.localDay)}</span>
-                    {view.rumination.has(e.id) && <span className="text-rose-300">Rumination loop</span>}
+                    {view.rumination.has(e.id) && <span className="text-rose-300">Writing circled</span>}
                     {e.status === 'draft' && <span className="text-ember-300">Draft</span>}
                     <span className="nr-num ml-auto">{e.wordCount} words</span>
                   </span>

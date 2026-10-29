@@ -46,7 +46,7 @@ async function ask(question) {
 try {
   await page.goto(BASE, { waitUntil: 'networkidle' });
   await waitForJournal(page);
-  await page.getByTitle('Memory (Alt+3)').click();
+  await page.getByTitle('Memory (Alt+4)').click();
   await page.getByRole('radio', { name: 'Recall' }).click();
   await page.getByText('Ask your journal', { exact: false }).first().waitFor({ timeout: 10000 });
   check('recall view opens', true);
@@ -61,12 +61,12 @@ try {
   await shot('recall-main');
 
   // Mocked Anthropic answers, citing two passages and inventing a third.
-  await page.getByTitle('Vault (Alt+4)').click();
+  await page.getByTitle('Vault (Alt+5)').click();
   await page.getByRole('radio', { name: /Anthropic \(Claude\)/ }).check();
   await page.getByLabel('API key', { exact: true }).fill('sk-ant-test-key');
   await page.keyboard.press('Tab');
   await page.waitForTimeout(300);
-  await page.getByTitle('Memory (Alt+3)').click();
+  await page.getByTitle('Memory (Alt+4)').click();
   await page.getByRole('radio', { name: 'Recall' }).click();
   a = await ask('What happened with the presentation?');
   const text = await a.innerText();
@@ -84,11 +84,11 @@ try {
   check('a failing provider falls back and still reports the passages sent', note.includes('did not answer') && note.includes(`${failedSent} passage`), note);
 
   // No API key: nothing is sent, and the note says so.
-  await page.getByTitle('Vault (Alt+4)').click();
+  await page.getByTitle('Vault (Alt+5)').click();
   await page.getByLabel('API key', { exact: true }).fill('');
   await page.keyboard.press('Tab');
   await page.waitForTimeout(300);
-  await page.getByTitle('Memory (Alt+3)').click();
+  await page.getByTitle('Memory (Alt+4)').click();
   await page.getByRole('radio', { name: 'Recall' }).click();
   const before = requests.length;
   a = await ask('What happened with the presentation?');
@@ -96,7 +96,7 @@ try {
   check('without an API key nothing is sent and the note says so', requests.length === before && keyless.includes('Nothing left this device'), keyless);
 
   // Back to the built-in engine.
-  await page.getByTitle('Vault (Alt+4)').click();
+  await page.getByTitle('Vault (Alt+5)').click();
   await page.getByRole('radio', { name: /Built-in engine/ }).check();
   await page.waitForTimeout(300);
 } catch (err) {

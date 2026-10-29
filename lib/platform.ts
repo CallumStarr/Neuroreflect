@@ -47,12 +47,21 @@ export function isThisComputer(url: string): boolean {
  * Saves text as a file. The desktop app asks where with the system save dialog;
  * a browser downloads it. Resolves to false if the person cancels.
  */
-export async function saveTextFile(filename: string, text: string): Promise<boolean> {
+export interface SaveKind {
+  /** Shown in the save dialog's file type list. */
+  label: string;
+  extensions: string[];
+  mime: string;
+}
+
+export const JSON_FILE: SaveKind = { label: 'NeuroReflect export', extensions: ['json'], mime: 'application/json' };
+
+export async function saveTextFile(filename: string, text: string, kind: SaveKind = JSON_FILE): Promise<boolean> {
   if (isDesktop()) {
     const { invoke } = await import('@tauri-apps/api/core');
-    return invoke<boolean>('save_text_file', { suggestedName: filename, contents: text });
+    return invoke<boolean>('save_text_file', { suggestedName: filename, contents: text, filterName: kind.label, extensions: kind.extensions });
   }
-  const blob = new Blob([text], { type: 'application/json' });
+  const blob = new Blob([text], { type: kind.mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

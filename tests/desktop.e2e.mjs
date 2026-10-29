@@ -85,6 +85,14 @@ async function openApp() {
   caps.setBrowserName('wry');
   const d = await new Builder().withCapabilities(caps).usingServer('http://127.0.0.1:4444/').build();
   await d.wait(until.elementLocated(By.xpath("//button[normalize-space()='Finish' or normalize-space()='Re-finish']")), 60000);
+  // A fresh journal opens on the first session; these checks explore with the
+  // sample entries instead. The welcome closes once they are saved.
+  await sleep(500);
+  const explore = await d.findElements(By.xpath("//button[normalize-space()='Explore with sample entries first']"));
+  if (explore.length) {
+    await explore[0].click();
+    await d.wait(async () => (await d.findElements(By.css('[data-testid="welcome-dialog"]'))).length === 0, 30000);
+  }
   return d;
 }
 
@@ -126,9 +134,10 @@ async function testConnection(d) {
 // Answers the system save dialog by typing a path into it, or cancels it when no
 // path is given (Linux, xdotool). The title comes from src-tauri/src/lib.rs.
 const DIALOG_TITLE = 'Save your NeuroReflect export';
-async function answerSaveDialog(filePath) {
+const CALENDAR_DIALOG_TITLE = 'Save your writing time to a calendar file';
+async function answerSaveDialog(filePath, title = DIALOG_TITLE) {
   for (let i = 0; i < 40; i++) {
-    const id = spawnSync('xdotool', ['search', '--onlyvisible', '--name', DIALOG_TITLE], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean)[0];
+    const id = spawnSync('xdotool', ['search', '--onlyvisible', '--name', title], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean)[0];
     if (id) {
       spawnSync('xdotool', ['windowfocus', '--sync', id]);
       await sleep(400);
@@ -228,6 +237,23 @@ try {
     await answerSaveDialog(null);
     await sleep(800);
     check('cancelling the save dialog saves nothing and shows no message', (await d.findElements(byText('p', 'Exported as readable JSON'))).length === 0);
+
+    // The writing time as a calendar file, through the same save command.
+    await d.findElement(By.css('[data-testid="edit-writing-time"]')).click();
+    await sleep(500);
+    const icsTarget = path.join(os.tmpdir(), `neuroreflect-writing-time-${Date.now()}.ics`);
+    await d.findElement(byText('button', 'Add my writing time to my calendar')).click();
+    const icsDialog = await answerSaveDialog(icsTarget, CALENDAR_DIALOG_TITLE);
+    await d.wait(until.elementLocated(byText('p', 'Saved. Open the file to add it to your calendar.')), 15000).catch(() => null);
+    let ics = '';
+    try {
+      ics = fs.readFileSync(icsTarget, 'utf8');
+    } catch {
+      /* not written */
+    }
+    check('the writing time is saved as a calendar file where the save dialog says', /^BEGIN:VCALENDAR\r\n/.test(ics) && ics.includes('SUMMARY:Writing time\r\n'), icsDialog ? icsTarget : 'no save dialog appeared');
+    await d.findElement(By.xpath("//div[@aria-label='Your writing time']//button[normalize-space()='Cancel']")).click();
+    await sleep(400);
   }
 
   // Settings survive closing and reopening the app.

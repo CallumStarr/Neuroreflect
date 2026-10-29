@@ -11,7 +11,7 @@
 // - Core values are matched by name, so two journals that both value "Growth"
 //   keep one Growth. New names are added while there is room for five.
 
-import { DERIVED_TABLES, TABLE_NAMES, getDB, loadSettings, type TableName } from './db';
+import { DERIVED_TABLES, DEVICE_TABLES, TABLE_NAMES, getDB, loadSettings, type TableName } from './db';
 import { rebuildMemoryArtifacts } from './memory';
 import { extractAndStoreMentions, normaliseLabel, rebuildGraph, syncValueNode } from './pipeline';
 import { computeTelemetry } from './psych-engine';
@@ -19,7 +19,7 @@ import type { CoreValue, Entry, ValueAlignment } from './types';
 import type { RawExport } from './vault';
 
 const MAX_VALUES = 5;
-const NEVER_MERGED: readonly TableName[] = ['settings', 'promptTemplates', 'nodes', 'mentions', 'edges', ...DERIVED_TABLES];
+const NEVER_MERGED: readonly TableName[] = ['settings', 'promptTemplates', 'nodes', 'mentions', 'edges', ...DERIVED_TABLES, ...DEVICE_TABLES];
 const MERGED_BY_RULE: readonly TableName[] = ['coreValues', 'valueAlignments'];
 
 type Row = Record<string, unknown>;

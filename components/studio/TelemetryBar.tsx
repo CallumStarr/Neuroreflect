@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { CircleCheck, Loader, RefreshCcw } from 'lucide-react';
+import { CircleCheck, Loader, RefreshCcw, X } from 'lucide-react';
 import type { RuminationThresholds, Telemetry } from '@/lib/types';
 
 export interface TraceSample {
@@ -19,6 +19,10 @@ interface Props {
   ruminationActive: boolean;
   onStepBack: () => void;
   busy: boolean;
+  /** Open and Blank guidance offer prompts only when asked, so no step-back alert appears. */
+  suggestionsOff?: boolean;
+  /** Hides the step-back alert for the rest of this entry. */
+  onDismiss?: () => void;
 }
 
 // The trace draws at its real pixel width (measured), so lines and the end dot
@@ -84,17 +88,17 @@ function Metric({ label, value, hint, children, alert, note, compact }: { label:
   );
 }
 
-export default function TelemetryBar({ telemetry: t, trace, thresholds, ruminationActive, onStepBack, busy }: Props) {
+export default function TelemetryBar({ telemetry: t, trace, thresholds, ruminationActive, onStepBack, busy, suggestionsOff, onDismiss }: Props) {
   const armed = t.wordCount > thresholds.minWords;
   const iTalkHigh = t.iTalkDensity > thresholds.iTalk;
   const cogLow = t.cogProcDensity < thresholds.cogProcMax;
   return (
-    <section aria-label="Live writing telemetry" className="flex h-[74px] shrink-0 items-stretch border-t border-ink-800 bg-ink-950">
+    <section aria-label="Live writing measures" className="flex h-[74px] shrink-0 items-stretch border-t border-ink-800 bg-ink-950">
       <div className="flex min-w-0 flex-1 items-center divide-x divide-ink-800 overflow-x-auto">
         <Metric
           label="Self-focus"
           value={`${(t.iTalkDensity * 100).toFixed(1)}%`}
-          hint="I-talk density: I, me, my, myself as a share of all words. High self-focus is one of three signals the circuit-breaker watches."
+          hint="I, me, my and myself as a share of all words. High self-focus is one of the three signals behind the step-back suggestion. These measure words, not you."
           alert={armed && iTalkHigh}
         >
           <Trace values={trace.map((s) => s.iTalk)} max={0.25} threshold={thresholds.iTalk} thresholdLabel={`${Math.round(thresholds.iTalk * 100)}%`} />
@@ -102,18 +106,18 @@ export default function TelemetryBar({ telemetry: t, trace, thresholds, ruminati
         <Metric
           label="Making sense"
           value={`${(t.cogProcDensity * 100).toFixed(1)}%`}
-          hint="Cognitive processing: causal and insight words such as because, realise, although, perhaps. Higher is generally healthier."
+          hint="Causal and insight words, such as because, realise, although and perhaps, as a share of all words."
           alert={armed && cogLow && iTalkHigh}
         >
           <Trace values={trace.map((s) => s.cog)} max={0.08} threshold={thresholds.cogProcMax} invert />
         </Metric>
-        <Metric label="Negative affect" value={`${(t.negAffectDensity * 100).toFixed(1)}%`} hint="Negative emotion words as a share of all words.">
+        <Metric label="Negative feeling" value={`${(t.negAffectDensity * 100).toFixed(1)}%`} hint="Negative feeling words as a share of all words.">
           <Trace values={trace.map((s) => s.neg)} max={0.15} threshold={thresholds.negAffect} />
         </Metric>
         <Metric
-          label="Defusion"
+          label="Distance"
           value={`${t.fusionScore}`}
-          hint={`Out of 100. ${t.fusedCount} fused phrase${t.fusedCount === 1 ? '' : 's'} (absolute statements spoken from inside the thought), ${t.defusedCount} defused (observed from outside). Hover an underlined phrase to reframe it.`}
+          hint={`Distance from thoughts, out of 100. ${t.fusedCount} phrase${t.fusedCount === 1 ? '' : 's'} written from inside a thought, as if simply true, and ${t.defusedCount} written as a thought you noticed. Hover an underlined phrase to rewrite it.`}
         >
           <Trace values={trace.map((s) => s.fusion)} max={100} invert />
         </Metric>
@@ -140,8 +144,8 @@ export default function TelemetryBar({ telemetry: t, trace, thresholds, ruminati
           <>
             <RefreshCcw size={18} className="shrink-0 text-rose-400" aria-hidden />
             <div className="min-w-0 flex-1">
-              <p className="whitespace-nowrap text-[13px] font-medium text-rose-300">Rumination loop detected</p>
-              <p className="whitespace-nowrap text-[11.5px] leading-4 text-paper-300">High self-focus, little sense-making</p>
+              <p className="whitespace-nowrap text-[13px] font-medium text-rose-300">This may be going in circles</p>
+              <p className="whitespace-nowrap text-[11.5px] leading-4 text-paper-300">Only a guess from the wording. Ignore it freely</p>
             </div>
             <button
               type="button"
@@ -151,13 +155,26 @@ export default function TelemetryBar({ telemetry: t, trace, thresholds, ruminati
             >
               {busy ? <Loader size={13} className="animate-spin" /> : 'Step back'}
             </button>
+            {onDismiss && (
+              <button type="button" onClick={onDismiss} aria-label="Hide the step-back suggestion for this entry" title="Not now" className="shrink-0 rounded-lg p-1 text-paper-500 hover:bg-ink-900 hover:text-paper-100">
+                <X size={14} />
+              </button>
+            )}
+          </>
+        ) : suggestionsOff ? (
+          <>
+            <CircleCheck size={18} className="shrink-0 text-paper-500" aria-hidden />
+            <div>
+              <p className="text-[13px] text-paper-100">Step-back suggestion off</p>
+              <p className="text-[11.5px] text-paper-500">This guidance level waits to be asked</p>
+            </div>
           </>
         ) : armed ? (
           <>
             <CircleCheck size={18} className="shrink-0 text-paper-500" aria-hidden />
             <div>
-              <p className="text-[13px] text-paper-100">No loop pattern</p>
-              <p className="text-[11.5px] text-paper-500">Circuit-breaker watching</p>
+              <p className="text-[13px] text-paper-100">No looping pattern noticed</p>
+              <p className="text-[11.5px] text-paper-500">Step-back suggestion on</p>
             </div>
           </>
         ) : (
@@ -177,7 +194,7 @@ export default function TelemetryBar({ telemetry: t, trace, thresholds, ruminati
               </svg>
             </div>
             <div>
-              <p className="text-[13px] text-paper-100">Circuit-breaker arming</p>
+              <p className="text-[13px] text-paper-100">Warming up</p>
               <p className="nr-num text-[11.5px] text-paper-500">
                 {t.wordCount} of {thresholds.minWords} words
               </p>

@@ -192,7 +192,7 @@ export default function RecallView() {
               )}
             </article>
           ))}
-          {!shown.length && <p className="text-[13px] text-paper-500">Ask a question like “Where does my anxiety around presentations show up most?”</p>}
+          {!shown.length && <p className="text-[13px] text-paper-500">Ask a question like “How have presentations gone, and what helped?”</p>}
         </div>
 
         <div className="border-t border-ink-800 p-3">
@@ -259,7 +259,7 @@ export default function RecallView() {
                 <span className="font-medium">{c.title}</span>
               </div>
               <div className="mt-0.5 text-[11.5px] text-paper-500">{c.narrative}</div>
-              {c.carryForward && <div className="mt-1 text-[11.5px] text-paper-300">Your micro-action then: {c.carryForward}</div>}
+              {c.carryForward && <div className="mt-1 text-[11.5px] text-paper-300">Your plan then: {c.carryForward}</div>}
             </li>
           ))}
         </ul>

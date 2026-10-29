@@ -82,6 +82,21 @@ export function heuristicDistancing(blocks: Block[], userName: string, seedExtra
   return pick(options, seed);
 }
 
+// "How exactly", never "why": concrete questions for a circling entry (Watkins et al. 2012).
+export function heuristicConcrete(blocks: Block[], seedExtra = 0): string {
+  const charged = mostChargedSentence(blocks);
+  const seed = hash(charged) + seedExtra;
+  const options = [
+    charged
+      ? `Take the moment behind "${quote(charged, 60)}". What happened, step by step, as if you were describing a film?`
+      : 'Pick one specific moment from today. What happened, step by step, as if you were describing a film?',
+    'In that moment, what exactly did you see, hear and do?',
+    'What is one small, specific thing you could do the next time a moment like this comes up, and how exactly would you do it?',
+    'What happened just before it started to feel this way?',
+  ];
+  return pick(options, seed);
+}
+
 export function heuristicLens(lens: LensId, blocks: Block[], t: Telemetry, values: CoreValue[]): string {
   const sentences = blocks
     .map((b) => b.text)
@@ -117,7 +132,7 @@ export function heuristicLens(lens: LensId, blocks: Block[], t: Telemetry, value
     const against = sentences.filter((s) => /\b(but|although|though|actually|still|managed|did)\b/i.test(s)).slice(0, 1);
     return [
       `Situation: ${quote(sentences[0] ?? 'the events in this entry', 90)}`,
-      `Automatic thought: "${quote(thought, 90)}"`,
+      `The thought: "${quote(thought, 90)}"`,
       `Evidence for: the feelings were real and ${t.negAffectDensity > 0.03 ? 'strong' : 'present'} (guess).`,
       `Evidence against: ${against.length ? quote(against[0], 90) : 'what has gone differently before (worth adding).'}`,
       `A more balanced thought: "Part of me believes ${quote(thought.replace(/^i /i, 'I '), 60)}, and I also know it is not the whole picture."`,
@@ -155,12 +170,14 @@ export function heuristicSynthesis(blocks: Block[], t: Telemetry, values: CoreVa
         ? 'Possibly: that the uncomfortable feeling has to go away before you can act.'
         : 'Possibly: that how today felt says something fixed about how things will be.';
 
+  // Written as if-then plans: naming the moment as well as the action makes a
+  // plan far more likely to happen (Gollwitzer & Sheeran 2006).
   let microAction: string;
-  if (t.avoidanceHits.length) microAction = 'Spend ten timed minutes on the thing you put off, then stop.';
-  else if (t.ruminationFlag) microAction = 'Write three sentences about this in the third person tomorrow morning.';
-  else if (t.coarseLabels.length) microAction = `Next time you feel "${t.coarseLabels[0]}", name it more precisely before acting.`;
-  else if (values[0]) microAction = `Do one small thing for ${values[0].label.toLowerCase()} before tomorrow evening.`;
-  else microAction = 'Note one moment tomorrow when you feel most like yourself.';
+  if (t.avoidanceHits.length) microAction = "When I sit down after breakfast tomorrow, I'll spend ten timed minutes on the thing I put off, then stop.";
+  else if (t.ruminationFlag) microAction = "When I make my first drink tomorrow, I'll write three sentences about this in the third person.";
+  else if (t.coarseLabels.length) microAction = `When I next notice I'm feeling "${t.coarseLabels[0]}", I'll pause and name it more precisely before I act.`;
+  else if (values[0]) microAction = `When I have ten free minutes tomorrow, I'll do one small thing for ${values[0].label.toLowerCase()}.`;
+  else microAction = "When I notice a moment tomorrow where I feel most like myself, I'll jot down what I was doing.";
 
   return { keyTakeaway, hiddenAssumption, microAction };
 }

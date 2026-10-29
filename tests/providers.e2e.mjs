@@ -110,7 +110,7 @@ await page.route('https://api.openai.com/**', async (route) => {
 });
 
 async function openVault() {
-  await page.getByTitle('Vault (Alt+4)').click();
+  await page.getByTitle('Vault (Alt+5)').click();
   await page.getByRole('heading', { name: 'Settings and vault' }).waitFor();
 }
 async function testConnection() {
@@ -170,7 +170,7 @@ try {
     'request uses the edited template after the fixed shared rules',
     a1?.body.system.startsWith('You are a reflective-writing companion') && a1?.body.system.includes('Mention the harbour') && !a1?.body.system.includes('look one level beneath'),
   );
-  check('request carries telemetry and the entry text', a1?.body.messages[0].content.includes('Measured telemetry for this entry') && a1?.body.messages[0].content.includes('ask Priya for more time'));
+  check('request carries the writing signals and the entry text', a1?.body.messages[0].content.includes('Measured writing signals for this entry') && a1?.body.messages[0].content.includes('ask Priya for more time'));
   await shot('31-anthropic-question');
 
   // Provider failure falls back to the built-in engine and says so.

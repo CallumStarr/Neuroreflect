@@ -87,11 +87,12 @@ try {
   await barAt([320, 360, 390, 414], 'with the lock off');
 
   for (const [name, go] of [
-    ['Telemetry', () => page.keyboard.press('Alt+2')],
-    ['Memory graph', () => page.keyboard.press('Alt+3')],
+    ['Planner', () => page.keyboard.press('Alt+2')],
+    ['Patterns', () => page.keyboard.press('Alt+3')],
+    ['Memory graph', () => page.keyboard.press('Alt+4')],
     ['Memory timeline', () => page.getByRole('radio', { name: 'Timeline' }).click()],
     ['Recall', () => page.getByRole('radio', { name: 'Recall' }).click()],
-    ['Vault', () => page.keyboard.press('Alt+4')],
+    ['Vault', () => page.keyboard.press('Alt+5')],
   ]) {
     await go();
     const past = [];
@@ -126,7 +127,7 @@ try {
   await shot('01-vault-sliders');
 
   // Recall on a phone: one column that switches between the answer and the threads.
-  await page.keyboard.press('Alt+3');
+  await page.keyboard.press('Alt+4');
   await page.getByRole('radio', { name: 'Recall' }).click();
   await page.getByRole('textbox', { name: 'Ask your journal' }).fill('When did I feel relief?');
   await page.getByRole('button', { name: 'Ask', exact: true }).click();
@@ -150,7 +151,7 @@ try {
   check('New chat clears the conversation and the earlier one can be reopened', cleared);
 
   // A threshold slider dragged by touch is saved.
-  await page.keyboard.press('Alt+4');
+  await page.keyboard.press('Alt+5');
   const slider = page.locator('#th-minWords');
   await slider.scrollIntoViewIfNeeded();
   const before = await slider.inputValue();
@@ -171,7 +172,7 @@ try {
   const dragged = await slider.inputValue();
   await page.reload({ waitUntil: 'networkidle' });
   await waitForJournal(page);
-  await page.keyboard.press('Alt+4');
+  await page.keyboard.press('Alt+5');
   const saved = await page.locator('#th-minWords').inputValue();
   check('a threshold slider dragged by touch is saved', dragged !== before && saved === dragged, `${before} -> ${dragged}, after reload ${saved}`);
   await page.getByRole('button', { name: 'Reset to defaults' }).click();
@@ -187,7 +188,7 @@ try {
 
   // On a wide screen Recall goes back to three columns.
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.keyboard.press('Alt+3');
+  await page.keyboard.press('Alt+4');
   await page.getByRole('radio', { name: 'Recall' }).click();
   const cols = await page.evaluate(() => getComputedStyle(document.querySelector('[class*="lg:grid-cols"]')).gridTemplateColumns.split(' ').length);
   check('Recall shows three columns on a wide screen', cols === 3 && (await page.getByRole('button', { name: 'New recall chat' }).isVisible()), `${cols} columns`);

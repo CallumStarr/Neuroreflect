@@ -51,7 +51,7 @@ export default function EntryRail({ activeId, onOpen, onNew, onCollapse }: Props
                 <span className="flex items-center justify-between gap-2">
                   <span className="text-[11.5px] text-paper-500">{e.localDay === today ? 'Today' : formatDay(e.localDay)}</span>
                   <span className="flex items-center gap-1.5">
-                    {data?.flags.has(e.id) && <RefreshCcw size={11} className="text-rose-400" aria-label="Rumination loop flagged" />}
+                    {data?.flags.has(e.id) && <RefreshCcw size={11} className="text-rose-400" aria-label="Writing circled in this entry" />}
                     {e.status === 'draft' && <span className="text-[11px] text-ember-300">Draft</span>}
                   </span>
                 </span>

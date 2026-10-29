@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronsLeft, ChevronsRight, CircleStop, Compass, Layers, Loader, MessageCircleQuestion, Palette, ScrollText, X } from 'lucide-react';
 import { COARSE_TO_FAMILIES } from '@/lib/lexicons';
-import { LENSES } from '@/lib/prompts';
+import { LENSES, PERSPECTIVE_NOTE } from '@/lib/prompts';
 import type { CopilotTurn, CoreValue, Entry, GraphNode, LensId, Mention, ProviderId, Synthesis, Telemetry, ValueAlignment } from '@/lib/types';
 import EmotionWheel from './EmotionWheel';
 
@@ -39,6 +39,7 @@ interface Props {
   finish: FinishProgress;
   onGoDeeper: () => void;
   onStepBack: () => void;
+  onConcrete: () => void;
   onLens: (lens: LensId) => void;
   onCancel: () => void;
   onFinish: () => void;
@@ -46,6 +47,11 @@ interface Props {
   onInsertTerm: (term: string) => void;
   onConfirmMention: (id: string) => void;
   onRemoveMention: (id: string) => void;
+  /** Narrow screens: the pane slides over the entry instead of sitting beside it. */
+  overlay?: boolean;
+  /** Offer to leave a question for next time once the entry is finished. */
+  nextTimeQuestion?: boolean;
+  onNextQuestion?: (question: string | null) => void;
 }
 
 const TABS: { id: CopilotTab; label: string; icon: typeof Compass }[] = [
@@ -71,8 +77,9 @@ function timeOf(iso: string): string {
 }
 
 export default function CopilotPane(props: Props) {
-  const { collapsed, onToggle, tab, setTab } = props;
+  const { collapsed, onToggle, tab, setTab, overlay } = props;
 
+  if (collapsed && overlay) return null;
   if (collapsed) {
     return (
       <aside className="flex w-12 shrink-0 flex-col items-center gap-1 border-l border-ink-800 bg-ink-950 py-3" aria-label="Co-pilot (collapsed)">
@@ -98,7 +105,9 @@ export default function CopilotPane(props: Props) {
   }
 
   return (
-    <aside className="flex w-[384px] shrink-0 flex-col border-l border-ink-800 bg-ink-950" aria-label="Co-pilot">
+    <>
+    {overlay && <button type="button" aria-label="Close co-pilot" className="fixed inset-0 z-30 bg-black/50" onClick={onToggle} />}
+    <aside className={`flex flex-col border-l border-ink-800 bg-ink-950 ${overlay ? 'fixed inset-y-0 right-0 z-40 w-[min(384px,92vw)] shadow-[0_0_60px_rgba(0,0,0,0.6)]' : 'w-[384px] shrink-0'}`} aria-label="Co-pilot">
       <div className="flex items-center gap-1 border-b border-ink-800 px-2 py-2">
         <div role="tablist" aria-label="Co-pilot modes" className="flex flex-1 gap-0.5">
           {TABS.map(({ id, label }) => (
@@ -127,6 +136,7 @@ export default function CopilotPane(props: Props) {
         {tab === 'name' && <NameTab {...props} />}
       </div>
     </aside>
+    </>
   );
 }
 
@@ -140,7 +150,7 @@ function StreamCard({ stream, onCancel }: { stream: StreamState; onCancel: () =>
   return (
     <div ref={ref} className="rounded-xl border border-ember-500/40 bg-ink-900 p-4" style={{ minHeight: minH }} aria-live="polite">
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-[12px] text-paper-500">{stream.mode === 'distancing' ? 'Stepping back' : stream.mode === 'lens' ? 'Applying lens' : 'Thinking of a question'}</span>
+        <span className="text-[12px] text-paper-500">{stream.mode === 'distancing' ? 'Stepping back' : stream.mode === 'concrete' ? 'Asking how' : stream.mode === 'lens' ? 'Applying lens' : 'Thinking of a question'}</span>
         <button type="button" onClick={onCancel} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] text-paper-500 hover:bg-ink-800 hover:text-paper-100">
           <CircleStop size={12} /> Stop
         </button>
@@ -152,25 +162,33 @@ function StreamCard({ stream, onCancel }: { stream: StreamState; onCancel: () =>
   );
 }
 
-function InquiryTab({ turns, stream, ruminationActive, suggestDeeper, onGoDeeper, onStepBack, onCancel, entry, telemetry }: Props) {
-  const asked = turns.filter((t) => t.mode === 'socratic' || t.mode === 'distancing');
+function InquiryTab({ turns, stream, ruminationActive, suggestDeeper, onGoDeeper, onStepBack, onConcrete, onCancel, entry, telemetry }: Props) {
+  const asked = turns.filter((t) => t.mode === 'socratic' || t.mode === 'distancing' || t.mode === 'concrete');
   const tooShort = telemetry.wordCount < 8;
   return (
     <div className="flex flex-col gap-4">
       {ruminationActive ? (
         <div className="rounded-xl border border-rose-400/40 bg-rose-400/10 p-4">
-          <p className="text-[13.5px] font-medium text-rose-300">Your writing is circling</p>
+          <p className="text-[13.5px] font-medium text-rose-300">This may be going in circles</p>
           <p className="mt-1 text-[13px] leading-5 text-paper-300">
-            Lots of &ldquo;I&rdquo;, strong negative feeling and little cause-and-effect language. Digging deeper tends to feed that loop, so the next prompt will help you step back instead: a third-person or a year-from-now view.
+            Lots of &ldquo;I&rdquo;, strong negative feeling and little cause-and-effect language. Digging deeper tends to feed that loop, so questions now help you step back, or ask how rather than why.
           </p>
-          <button
-            type="button"
-            onClick={onStepBack}
-            disabled={stream.active}
-            className="mt-3 rounded-lg bg-rose-400 px-3 py-1.5 text-[13px] font-medium text-ink-950 hover:bg-rose-300 disabled:opacity-50"
-          >
-            Step back <kbd className="ml-1 text-[11px] opacity-70">Ctrl Enter</kbd>
-          </button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onStepBack}
+              disabled={stream.active}
+              className="rounded-lg bg-rose-400 px-3 py-1.5 text-[13px] font-medium text-ink-950 hover:bg-rose-300 disabled:opacity-50"
+            >
+              Step back
+            </button>
+            <button type="button" onClick={onConcrete} disabled={stream.active} className="rounded-lg border border-rose-400/50 px-3 py-1.5 text-[13px] text-paper-100 hover:bg-rose-400/10 disabled:opacity-50">
+              How exactly
+            </button>
+          </div>
+          <p className="mt-2 text-[11.5px] text-paper-500">
+            <kbd className="text-paper-300">Ctrl Enter</kbd> takes turns between the two.
+          </p>
         </div>
       ) : (
         <div>
@@ -210,7 +228,7 @@ function InquiryTab({ turns, stream, ruminationActive, suggestDeeper, onGoDeeper
           .map((t) => (
             <li key={t.id} className="rounded-xl bg-ink-900 p-4">
               <p className="text-[12px] text-paper-500">
-                {t.mode === 'distancing' ? 'A step back' : 'A question'}, {timeOf(t.createdAt)}
+                {t.mode === 'distancing' ? 'A step back' : t.mode === 'concrete' ? 'How, not why' : 'A question'}, {timeOf(t.createdAt)}
                 {t.incomplete ? ', stopped early' : ''}
               </p>
               <p className="mt-1 font-serif text-[0.98rem] leading-7 text-paper-100">{t.text}</p>
@@ -227,7 +245,7 @@ function LensesTab({ turns, stream, onLens, onCancel, telemetry }: Props) {
   const tooShort = telemetry.wordCount < 15;
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[13px] leading-5 text-paper-300">Look at this entry through a structured framework. Each lens reads what you have written so far.</p>
+      <p className="text-[13px] leading-5 text-paper-300">Look at this entry another way. Each lens reads what you have written so far. Perspectives are ways of looking at things, not tested techniques.</p>
       <div className="grid gap-2">
         {LENSES.map((l) => (
           <button
@@ -237,7 +255,14 @@ function LensesTab({ turns, stream, onLens, onCancel, telemetry }: Props) {
             onClick={() => onLens(l.id)}
             className="rounded-xl border border-ink-700 px-4 py-3 text-left hover:border-ink-600 hover:bg-ink-900 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <span className="block text-[14px] font-medium text-paper-50">{l.label}</span>
+            <span className="flex items-center gap-2 text-[14px] font-medium text-paper-50">
+              {l.label}
+              {l.perspective && (
+                <span title={PERSPECTIVE_NOTE} className="rounded-full border border-ink-700 px-1.5 py-px text-[10.5px] font-normal text-paper-500">
+                  Perspective
+                </span>
+              )}
+            </span>
             <span className="block text-[12.5px] text-paper-500">{l.blurb}</span>
           </button>
         ))}
@@ -295,7 +320,68 @@ function ScoreBar({ score }: { score: number }) {
   );
 }
 
-function SynthesisTab({ entry, synthesis, finish, onFinish, values, alignments, mentions, onConfirmMention, onRemoveMention }: Props) {
+const NEXT_SUGGESTIONS = ['How did my small plan go?', 'What has changed since I wrote this?', 'What do I want to remember about this?'];
+
+/** An open loop the person chooses: one question that can open their next entry. */
+function NextQuestion({ value, onSave }: { value: string | null; onSave: (q: string | null) => void }) {
+  const [draft, setDraft] = useState('');
+  const [editing, setEditing] = useState(false);
+  if (value && !editing) {
+    return (
+      <section className="rounded-xl border border-ink-700 p-3.5" data-testid="next-question">
+        <h3 className="text-[12px] text-paper-500">Your question for next time</h3>
+        <p className="mt-1 font-serif text-[1rem] leading-6 text-paper-50">{value}</p>
+        <div className="mt-2 flex gap-3 text-[12px]">
+          <button type="button" onClick={() => { setDraft(value); setEditing(true); }} className="text-paper-500 underline decoration-ink-600 underline-offset-2 hover:text-paper-100">
+            Change
+          </button>
+          <button type="button" onClick={() => onSave(null)} className="text-paper-500 underline decoration-ink-600 underline-offset-2 hover:text-paper-100">
+            Remove
+          </button>
+        </div>
+      </section>
+    );
+  }
+  const save = (q: string) => {
+    const t = q.trim();
+    if (!t) return;
+    onSave(/[?]$/.test(t) ? t : `${t}?`);
+    setEditing(false);
+  };
+  return (
+    <section className="rounded-xl border border-dashed border-ink-700 p-3.5" data-testid="next-question">
+      <h3 className="text-[12px] text-paper-300">A question for next time?</h3>
+      <p className="mt-0.5 text-[12px] leading-5 text-paper-500">It opens your next entry, so you can pick up where you left off.</p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {NEXT_SUGGESTIONS.map((q) => (
+          <button key={q} type="button" onClick={() => save(q)} className="rounded-full border border-ink-700 px-2.5 py-0.5 text-[12px] text-paper-300 hover:border-ink-600 hover:text-paper-100">
+            {q}
+          </button>
+        ))}
+      </div>
+      <form
+        className="mt-2 flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save(draft);
+        }}
+      >
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          aria-label="Your question for next time"
+          placeholder="Or write your own"
+          className="min-w-0 flex-1 rounded-lg border border-ink-700 bg-ink-900 px-2.5 py-1.5 text-[13px] text-paper-50 placeholder:text-paper-500 focus:border-ember-400 focus:outline-none"
+        />
+        <button type="submit" disabled={!draft.trim()} className="rounded-lg border border-ink-700 px-2.5 py-1.5 text-[12.5px] text-paper-100 hover:bg-ink-900 disabled:opacity-40">
+          Save
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function SynthesisTab({ entry, synthesis, finish, onFinish, values, alignments, mentions, onConfirmMention, onRemoveMention, nextTimeQuestion, onNextQuestion }: Props) {
   if (finish.running) {
     return (
       <div aria-live="polite">
@@ -316,7 +402,7 @@ function SynthesisTab({ entry, synthesis, finish, onFinish, values, alignments, 
       <div>
         <p className="text-[14px] font-medium text-paper-50">When you are done writing</p>
         <p className="mt-1 text-[13px] leading-5 text-paper-300">
-          Finishing saves the entry, scores it, links the people, themes and values in it to your memory graph, and distils it into one takeaway, one hidden assumption and one small action.
+          Finishing saves the entry, measures it, links the people, themes and values in it to your memory graph, and distils it into one takeaway, one hidden assumption and one small plan.
         </p>
         <button type="button" onClick={onFinish} disabled={!entry || entry.wordCount === 0} className="mt-4 rounded-lg bg-ember-400 px-3.5 py-2 text-[13px] font-medium text-ink-950 hover:bg-ember-300 disabled:opacity-40">
           Finish entry <kbd className="ml-1 text-[11px] opacity-70">Ctrl Shift Enter</kbd>
@@ -338,7 +424,7 @@ function SynthesisTab({ entry, synthesis, finish, onFinish, values, alignments, 
             <p className="mt-1 font-serif text-[1.02rem] leading-7 text-paper-100">{synthesis.hiddenAssumption}</p>
           </div>
           <div className="rounded-xl border border-ember-500/40 bg-ember-500/10 p-3.5">
-            <h3 className="text-[12px] text-ember-300">One micro-action</h3>
+            <h3 className="text-[12px] text-ember-300">One small plan</h3>
             <p className="mt-1 text-[14px] leading-6 text-paper-50">{synthesis.microAction}</p>
           </div>
           <p className="text-[11.5px] text-paper-500">
@@ -353,6 +439,8 @@ function SynthesisTab({ entry, synthesis, finish, onFinish, values, alignments, 
           Distil this entry
         </button>
       )}
+
+      {nextTimeQuestion && onNextQuestion && entry?.status === 'complete' && <NextQuestion value={entry.nextQuestion ?? null} onSave={onNextQuestion} />}
 
       {values.length > 0 && alignments.length > 0 && (
         <section>

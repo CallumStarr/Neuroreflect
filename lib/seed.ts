@@ -7,7 +7,9 @@ import { heuristicSynthesis } from './heuristic-copilot';
 import { computeTelemetry, heuristicValueAlignment } from './psych-engine';
 import { extractAndStoreMentions, rebuildGraph, saveTelemetry, storeAlignment } from './pipeline';
 import { rebuildMemoryArtifacts } from './memory';
-import type { CopilotTurn, CoreValue, Entry, Forecast } from './types';
+import { markAllMigrated } from './migrations';
+import { newEvent } from './planner';
+import type { CaptureNote, CopilotTurn, CoreValue, Entry, Forecast, PlanEvent, Task } from './types';
 import { addDays, countWords, localDayOf, uid } from './util';
 
 interface SeedEntry {
@@ -96,16 +98,19 @@ function isoAt(day: string, hour: number, minute = 0): string {
   return new Date(y, m - 1, d, hour, minute).toISOString();
 }
 
+/**
+ * A new journal starts empty, with the first session (components/engagement/
+ * WelcomeDialog.tsx); the sample entries are there for anyone who wants to look
+ * around first. A journal that already has entries skips the first session.
+ */
 export async function seedIfEmpty(): Promise<boolean> {
   const db = getDB();
   const settings = await loadSettings();
-  if (settings.seeded) return false;
   if ((await db.entries.count()) > 0) {
-    await saveSettings({ seeded: true });
+    if (!settings.seeded || !settings.engagement.welcomeDone) await saveSettings({ seeded: true, engagement: { welcomeDone: true } });
     return false;
   }
-  await seedDatabase();
-  return true;
+  return false;
 }
 
 export async function seedDatabase(): Promise<void> {
@@ -132,6 +137,8 @@ export async function seedDatabase(): Promise<void> {
       wordCount: countWords(s.paragraphs.join(' ')),
       activeSeconds: s.minutes * 60,
       inputSources: s.dictated ? ['typed', 'dictated'] : ['typed'],
+      // Sample entries are never part of "Was this worth your time?".
+      worthSkipped: true,
     };
     entryIds.push(entry.id);
     await db.entries.put(entry);
@@ -224,5 +231,79 @@ export async function seedDatabase(): Promise<void> {
     },
   ];
   await db.forecasts.bulkPut(forecasts);
+
+  // The planner: a big event yesterday (with its forecast still to check), one
+  // coming up, a repeating run for health, and tasks that came from entries.
+  const health = values.find((v) => v.label === 'Health')?.id ?? null;
+  const reviewForecast = forecasts[3];
+  const sample = (e: Partial<PlanEvent> & Pick<PlanEvent, 'title' | 'startDay'>) => newEvent({ ...e, source: 'sample', createdAt: isoAt(addDays(today, -6), 9), updatedAt: isoAt(addDays(today, -6), 9) });
+  const events: PlanEvent[] = [
+    sample({ title: 'Quarterly review with Priya', startDay: addDays(today, -1), startTime: '10:00', endTime: '11:00', big: true, forecastId: reviewForecast.id, reminderMinutes: 30, location: 'Meeting room 2' }),
+    sample({ title: 'Presentation dry run', startDay: addDays(today, 2), startTime: '14:00', endTime: '15:00', big: true, reminderMinutes: 60 }),
+    sample({ title: 'Run along the river', startDay: addDays(today, -6), startTime: '07:30', endTime: '08:15', repeat: { rule: 'FREQ=WEEKLY;BYDAY=WE,SA', fromCompletion: false }, valueId: health, reminderMinutes: 15 }),
+    sample({ title: "Dinner with Sam's family", startDay: addDays(today, 5), startTime: '19:00', endTime: '21:30', location: "Sam's parents'" }),
+    sample({ title: 'Dentist check-up', startDay: addDays(today, 12), startTime: '09:30', endTime: '10:00', reminderMinutes: 1440 }),
+  ];
+  await db.events.bulkPut(events);
+
+  const task = (t: Partial<Task> & Pick<Task, 'title'>, createdDaysAgo: number): Task => ({
+    id: uid('tk'),
+    notes: '',
+    status: 'open',
+    dueDay: null,
+    dueTime: null,
+    repeat: null,
+    plan: null,
+    reminderMinutes: null,
+    valueId: null,
+    entryId: null,
+    blockId: null,
+    sourceText: '',
+    order: 0,
+    createdAt: isoAt(addDays(today, -createdDaysAgo), 21),
+    updatedAt: isoAt(addDays(today, -createdDaysAgo), 21),
+    doneAt: null,
+    reviewedAt: null,
+    letGoNote: '',
+    repeatOf: null,
+    tag: null,
+    ...t,
+  });
+  const firstEntry = await db.entries.get(entryIds[0]);
+  const lastEntry = await db.entries.get(entryIds[3]);
+  const planBlock = firstEntry?.blocks[3];
+  const timelineBlock = lastEntry?.blocks[3];
+  const tasks: Task[] = [
+    task({ title: 'Draft the slides', status: 'done', dueDay: addDays(today, -12), doneAt: isoAt(addDays(today, -12), 18), entryId: entryIds[0], blockId: planBlock?.id ?? null, sourceText: 'Plan: draft the slides tomorrow' }, 13),
+    task({ title: 'Book the dentist appointment', status: 'done', doneAt: isoAt(addDays(today, -11), 12), entryId: entryIds[0], blockId: planBlock?.id ?? null, sourceText: 'finally book the dentist appointment I keep putting off' }, 13),
+    task(
+      {
+        title: 'Ask Priya for a realistic timeline on the next report',
+        dueDay: today,
+        plan: { when: 'after lunch', where: 'at my desk' },
+        entryId: entryIds[3],
+        blockId: timelineBlock?.id ?? null,
+        sourceText: 'I am going to ask for a realistic timeline on the next report instead of saying yes and resenting it.',
+        order: 1,
+      },
+      2,
+    ),
+    task({ title: 'Call Mum about Boxing Day', dueDay: addDays(today, 3), dueTime: '18:00', reminderMinutes: 0, order: 2 }, 2),
+    task({ title: 'Put the bins out', dueDay: addDays(today, 1), order: 3 }, 20),
+    task({ title: 'Pick up the dry cleaning', dueDay: addDays(today, -4), order: 4 }, 6),
+    task({ title: 'Renew passport', order: 5 }, 16),
+  ];
+  // The bins go out on the same weekday every week, starting tomorrow.
+  const binsDay = addDays(today, 1).split('-').map(Number);
+  tasks[4].repeat = { rule: `FREQ=WEEKLY;BYDAY=${['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][new Date(binsDay[0], binsDay[1] - 1, binsDay[2]).getDay()]}`, fromCompletion: false };
+  await db.tasks.bulkPut(tasks);
+
+  const notes: CaptureNote[] = [
+    { id: uid('nt'), kind: 'note', text: 'Look into the climbing wall Sam mentioned', createdAt: isoAt(addDays(today, -3), 13), doneAt: null, entryId: null },
+    { id: uid('nt'), kind: 'worry', text: 'Whether the next report deadline is realistic', createdAt: isoAt(addDays(today, -1), 16), doneAt: null, entryId: null },
+  ];
+  await db.notes.bulkPut(notes);
+
   await saveSettings({ seeded: true });
+  await markAllMigrated();
 }

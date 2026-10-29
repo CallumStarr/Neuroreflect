@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { unlock } from '@/lib/lock';
 import { wipeAll } from '@/lib/vault';
 
-export default function LockScreen() {
+export default function LockScreen({ onHelp }: { onHelp?: () => void }) {
   const [passphrase, setPassphrase] = useState('');
   const [busy, setBusy] = useState<'unlock' | 'erase' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -97,9 +97,16 @@ export default function LockScreen() {
 
         <div className="mt-6 border-t border-ink-800 pt-4">
           {!forgot ? (
-            <button type="button" onClick={() => setForgot(true)} className="text-[12.5px] text-paper-500 underline decoration-ink-600 underline-offset-2 hover:text-paper-100">
-              Forgotten your passphrase?
-            </button>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <button type="button" onClick={() => setForgot(true)} className="text-[12.5px] text-paper-500 underline decoration-ink-600 underline-offset-2 hover:text-paper-100">
+                Forgotten your passphrase?
+              </button>
+              {onHelp && (
+                <button type="button" onClick={onHelp} className="text-[12.5px] text-rose-300 underline decoration-rose-400/40 underline-offset-2 hover:text-rose-200">
+                  Need help now?
+                </button>
+              )}
+            </div>
           ) : (
             <div className="nr-rise">
               <p className="text-[13px] leading-5 text-paper-300">

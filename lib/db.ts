@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from 'dexie';
 import { lockMiddleware } from './lock-core';
 import type {
   AppSettings,
+  CaptureNote,
   Chapter,
   Chat,
   ChatMessage,
@@ -13,12 +14,16 @@ import type {
   Edge,
   Entry,
   EntryRevision,
+  FeelingCheck,
   Forecast,
   GraphNode,
   Mention,
+  PlanEvent,
   PromptOverride,
+  ReminderLog,
   SettingRow,
   Synthesis,
+  Task,
   TelemetrySnapshot,
   ValueAlignment,
 } from './types';
@@ -48,7 +53,7 @@ export const SCHEMA_V2 = { ...SCHEMA_V1, nodes: 'id, kind, lastSeen' };
 
 // Version 3: long-term memory (search index, moments, threads, chapters) and
 // journal chat. Only ids, dates and keys are indexed; text stays unindexed.
-export const SCHEMA = {
+export const SCHEMA_V3 = {
   ...SCHEMA_V2,
   memoryChunks: 'id, entryId, localDay',
   moments: 'id, entryId, localDay',
@@ -57,7 +62,20 @@ export const SCHEMA = {
   chats: 'id, updatedAt',
   chatMessages: 'id, chatId, [chatId+createdAt]',
 };
-export const SCHEMA_VERSION = 3;
+
+// Version 4: the planner (events, tasks, quick notes), shown reminders and
+// feeling checks. Indexed fields are ids, days and a task's status, which stay
+// readable when the lock is on, like entry dates. Titles, times and repeats are
+// sealed with the rest of the record.
+export const SCHEMA = {
+  ...SCHEMA_V3,
+  events: 'id, startDay, updatedAt',
+  tasks: 'id, status, dueDay, entryId, updatedAt',
+  notes: 'id, createdAt',
+  reminderLog: 'id, firedAt',
+  feelingChecks: 'id, entryId, localDay',
+};
+export const SCHEMA_VERSION = 4;
 
 // Everything lives in the user's browser (IndexedDB). No server ever sees an entry.
 export class NeuroReflectDB extends Dexie {
@@ -80,6 +98,11 @@ export class NeuroReflectDB extends Dexie {
   chapters!: EntityTable<Chapter, 'id'>;
   chats!: EntityTable<Chat, 'id'>;
   chatMessages!: EntityTable<ChatMessage, 'id'>;
+  events!: EntityTable<PlanEvent, 'id'>;
+  tasks!: EntityTable<Task, 'id'>;
+  notes!: EntityTable<CaptureNote, 'id'>;
+  reminderLog!: EntityTable<ReminderLog, 'id'>;
+  feelingChecks!: EntityTable<FeelingCheck, 'id'>;
 
   constructor() {
     super(DB_NAME);
@@ -96,6 +119,13 @@ export class NeuroReflectDB extends Dexie {
       chapters: SCHEMA.chapters,
       chats: SCHEMA.chats,
       chatMessages: SCHEMA.chatMessages,
+    });
+    this.version(4).stores({
+      events: SCHEMA.events,
+      tasks: SCHEMA.tasks,
+      notes: SCHEMA.notes,
+      reminderLog: SCHEMA.reminderLog,
+      feelingChecks: SCHEMA.feelingChecks,
     });
     this.use(lockMiddleware);
   }
@@ -123,27 +153,105 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   thresholds: { minWords: 100, iTalk: 0.1, negAffect: 0.03, cogProcMax: 0.025 },
   seeded: false,
+  guidance: {
+    level: 'guided',
+    goals: [],
+    tone: 'gentle',
+    avoidTopics: [],
+    techniques: {},
+    setupDone: false,
+    feelingCheck: true,
+  },
+  planner: {
+    keepInTray: true,
+    startAtLogin: false,
+    defaultReminder: 15,
+    weekStartsOn: 1,
+    globalCapture: false,
+    worryPeriod: { enabled: false, time: '18:00', place: 'at the kitchen table', minutes: 30 },
+    bedtimeList: { enabled: true, after: '20:30' },
+    weeklyReviewDay: 0,
+    oneTap: true,
+    aiTaskSuggestions: false,
+    reminderTextWhenLocked: false,
+  },
+  migrations: [],
+  lastOpenAt: null,
+  engagement: {
+    plan: null,
+    nudge: {
+      enabled: true,
+      delayMinutes: 60,
+      frequency: 'daily',
+      skipDay: null,
+      pausedUntil: null,
+      showEventNames: false,
+      backoffAnsweredAt: null,
+      fadeOfferedAt: null,
+    },
+    quietHours: { enabled: true, from: '22:00', to: '07:00' },
+    rhythm: null,
+    todaysQuestion: true,
+    valuedEntries: true,
+    nextTimeQuestion: true,
+    welcomeDone: false,
+    tester: false,
+    habitChecks: [],
+    seen: [],
+  },
 };
 
-export async function loadSettings(): Promise<AppSettings> {
-  const row = await getDB().settings.get('app');
-  const stored = (row?.value ?? {}) as Partial<AppSettings>;
+type PlannerPatch = Partial<Omit<AppSettings['planner'], 'worryPeriod' | 'bedtimeList'>> & {
+  worryPeriod?: Partial<AppSettings['planner']['worryPeriod']>;
+  bedtimeList?: Partial<AppSettings['planner']['bedtimeList']>;
+};
+
+type EngagementPatch = Partial<Omit<AppSettings['engagement'], 'nudge' | 'quietHours'>> & {
+  nudge?: Partial<AppSettings['engagement']['nudge']>;
+  quietHours?: Partial<AppSettings['engagement']['quietHours']>;
+};
+
+export type SettingsPatch = Omit<Partial<AppSettings>, 'provider' | 'thresholds' | 'guidance' | 'planner' | 'engagement'> & {
+  provider?: Partial<AppSettings['provider']>;
+  thresholds?: Partial<AppSettings['thresholds']>;
+  guidance?: Partial<AppSettings['guidance']>;
+  planner?: PlannerPatch;
+  engagement?: EngagementPatch;
+};
+
+function mergeSettings(base: AppSettings, patch: SettingsPatch): AppSettings {
+  const planner: AppSettings['planner'] = {
+    ...base.planner,
+    ...(patch.planner ?? {}),
+    worryPeriod: { ...base.planner.worryPeriod, ...(patch.planner?.worryPeriod ?? {}) },
+    bedtimeList: { ...base.planner.bedtimeList, ...(patch.planner?.bedtimeList ?? {}) },
+  };
   return {
-    ...DEFAULT_SETTINGS,
-    ...stored,
-    provider: { ...DEFAULT_SETTINGS.provider, ...(stored.provider ?? {}) },
-    thresholds: { ...DEFAULT_SETTINGS.thresholds, ...(stored.thresholds ?? {}) },
+    ...base,
+    ...patch,
+    provider: { ...base.provider, ...(patch.provider ?? {}) },
+    thresholds: { ...base.thresholds, ...(patch.thresholds ?? {}) },
+    guidance: { ...base.guidance, ...(patch.guidance ?? {}), techniques: { ...base.guidance.techniques, ...(patch.guidance?.techniques ?? {}) } },
+    planner,
+    engagement: {
+      ...base.engagement,
+      ...(patch.engagement ?? {}),
+      nudge: { ...base.engagement.nudge, ...(patch.engagement?.nudge ?? {}) },
+      quietHours: { ...base.engagement.quietHours, ...(patch.engagement?.quietHours ?? {}) },
+    },
+    migrations: patch.migrations ?? base.migrations,
   };
 }
 
-export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
+export async function loadSettings(): Promise<AppSettings> {
+  const row = await getDB().settings.get('app');
+  const stored = (row?.value ?? {}) as SettingsPatch;
+  return mergeSettings(DEFAULT_SETTINGS, stored);
+}
+
+export async function saveSettings(patch: SettingsPatch): Promise<AppSettings> {
   const current = await loadSettings();
-  const next: AppSettings = {
-    ...current,
-    ...patch,
-    provider: { ...current.provider, ...(patch.provider ?? {}) },
-    thresholds: { ...current.thresholds, ...(patch.thresholds ?? {}) },
-  };
+  const next = mergeSettings(current, patch);
   await getDB().settings.put({ key: 'app', value: next });
   return next;
 }
@@ -168,9 +276,17 @@ export const TABLE_NAMES = [
   'chapters',
   'chats',
   'chatMessages',
+  'events',
+  'tasks',
+  'notes',
+  'reminderLog',
+  'feelingChecks',
 ] as const;
 export type TableName = (typeof TABLE_NAMES)[number];
 
 /** Rebuilt from entries at any time, so exports leave them out. Chapters are
  * included: every rebuild writes them afresh from the entries. */
 export const DERIVED_TABLES: readonly TableName[] = ['memoryChunks', 'moments', 'threads', 'chapters'];
+
+/** About this device only (which reminders it has shown), so never exported or merged. */
+export const DEVICE_TABLES: readonly TableName[] = ['reminderLog'];

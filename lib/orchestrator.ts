@@ -1,9 +1,9 @@
 // Assembles stateless co-pilot requests client-side (spec Section 8.2) and runs
 // them through the configured provider with the heuristic engine as fallback.
 
-import { getDB } from './db';
+import { getDB, loadSettings } from './db';
 import { modelFor, streamFrom, streamText, type ChatMessage } from './ai-provider';
-import { heuristicDistancing, heuristicLens, heuristicSocratic, heuristicSynthesis } from './heuristic-copilot';
+import { heuristicConcrete, heuristicDistancing, heuristicLens, heuristicSocratic, heuristicSynthesis } from './heuristic-copilot';
 import { composeSystem, getTemplate, lensTemplateId } from './prompts';
 import { systemPromptFor } from './templates';
 import type { AppSettings, Block, CopilotMode, CopilotTurn, CoreValue, LensId, ProviderId, Telemetry } from './types';
@@ -14,24 +14,38 @@ export interface MemoryBrief {
   people: { label: string; count: number }[];
   coreValues: string[];
   openForecasts: { eventName: string; targetDate: string }[];
+  tone?: string;
+  avoidTopics?: string[];
 }
+
+const TONE_WORDS: Record<string, string> = {
+  gentle: 'gentle and warm',
+  plain: 'plain and direct, short sentences',
+  curious: 'curious and exploratory',
+};
 
 export async function buildMemoryBrief(): Promise<MemoryBrief> {
   const db = getDB();
   const since = addDays(localDayOf(), -14);
-  const [themes, people, values, forecasts] = await Promise.all([
+  const [themes, people, values, forecasts, settings] = await Promise.all([
     db.nodes.where('kind').equals('theme').toArray(),
     db.nodes.where('kind').equals('person').toArray(),
     db.coreValues.orderBy('order').toArray(),
     db.forecasts.toArray(),
+    loadSettings(),
   ]);
+  const avoid = settings.guidance.avoidTopics.map((t) => t.toLowerCase());
+  const avoided = (label: string) => avoid.some((t) => t && label.toLowerCase().includes(t));
   return {
+    tone: TONE_WORDS[settings.guidance.tone],
+    avoidTopics: settings.guidance.avoidTopics,
     recurringThemes: themes
+      .filter((t) => !avoided(t.label))
       .sort((a, b) => b.mentionCount - a.mentionCount)
       .slice(0, 5)
       .map((t) => ({ label: t.label, count: t.mentionCount, lastSeen: t.lastSeen })),
     people: people
-      .filter((p) => p.lastSeen >= since)
+      .filter((p) => p.lastSeen >= since && !avoided(p.label))
       .sort((a, b) => b.mentionCount - a.mentionCount)
       .slice(0, 5)
       .map((p) => ({ label: p.label, count: p.mentionCount })),
@@ -78,11 +92,13 @@ export function buildMessages(args: {
   const context = [
     `Date: ${localDate}`,
     userName ? `Person's name: ${userName}` : '',
-    `Measured telemetry for this entry: ${telemetryLine(telemetry)}`,
+    `Measured writing signals for this entry: ${telemetryLine(telemetry)}`,
     brief.coreValues.length ? `Their stated core values: ${brief.coreValues.join(', ')}` : '',
     brief.recurringThemes.length ? `Recurring themes in their journal: ${brief.recurringThemes.map((t) => `${t.label} (${t.count})`).join(', ')}` : '',
     brief.people.length ? `People mentioned recently: ${brief.people.map((p) => p.label).join(', ')}` : '',
     brief.openForecasts.length ? `Upcoming events they have forecast: ${brief.openForecasts.map((f) => `${f.eventName} on ${f.targetDate}`).join('; ')}` : '',
+    brief.tone ? `Tone they asked for: ${brief.tone}` : '',
+    brief.avoidTopics?.length ? `Topics they asked you to leave alone unless they raise them: ${brief.avoidTopics.join(', ')}` : '',
     extra ?? '',
   ]
     .filter(Boolean)
@@ -127,7 +143,7 @@ const FIRST_TOKEN_TIMEOUT_MS = 20000;
 export async function runCopilot(args: RunArgs): Promise<CopilotTurn> {
   const { entryId, mode, lens, blocks, telemetry, settings, signal, onToken, anchorBlockId } = args;
   const db = getDB();
-  const templateId = mode === 'lens' && lens ? lensTemplateId(lens) : mode === 'distancing' ? 'distancing' : 'socratic';
+  const templateId = mode === 'lens' && lens ? lensTemplateId(lens) : mode === 'distancing' ? 'distancing' : mode === 'concrete' ? 'concrete' : 'socratic';
   const [turns, values, brief, system] = await Promise.all([
     db.copilotTurns.where('entryId').equals(entryId).sortBy('createdAt'),
     db.coreValues.orderBy('order').toArray(),
@@ -150,6 +166,7 @@ export async function runCopilot(args: RunArgs): Promise<CopilotTurn> {
   const heuristicText = () => {
     if (mode === 'lens' && lens) return heuristicLens(lens, blocks, telemetry, values);
     if (mode === 'distancing') return heuristicDistancing(blocks, settings.userName, askedBefore.length);
+    if (mode === 'concrete') return heuristicConcrete(blocks, askedBefore.length);
     return heuristicSocratic(blocks, telemetry, askedBefore);
   };
 
@@ -201,8 +218,8 @@ export async function runCopilot(args: RunArgs): Promise<CopilotTurn> {
     if (signal.aborted) incomplete = true;
   }
 
-  if (!incomplete && (mode === 'socratic' || mode === 'distancing') && provider !== 'heuristic') {
-    text = mode === 'socratic' ? enforceSingleQuestion(text) : text.trim();
+  if (!incomplete && (mode === 'socratic' || mode === 'distancing' || mode === 'concrete') && provider !== 'heuristic') {
+    text = mode === 'socratic' || mode === 'concrete' ? enforceSingleQuestion(text) : text.trim();
     onToken(text);
   }
 

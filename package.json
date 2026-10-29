@@ -10,8 +10,8 @@
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
-    "test": "tsx tests/engine.test.ts && tsx tests/storage.test.ts && tsx tests/recall.test.ts && tsx tests/chat.test.ts && tsx tests/validation.test.ts",
-    "test:e2e": "node tests/e2e.mjs && node tests/recall.e2e.mjs && node tests/providers.e2e.mjs && node tests/lock.e2e.mjs && node tests/mobile.e2e.mjs && node tests/offline.e2e.mjs",
+    "test": "tsx tests/engine.test.ts && tsx tests/storage.test.ts && tsx tests/recall.test.ts && tsx tests/chat.test.ts && tsx tests/validation.test.ts && tsx tests/engagement.test.ts",
+    "test:e2e": "node tests/e2e.mjs && node tests/recall.e2e.mjs && node tests/providers.e2e.mjs && node tests/lock.e2e.mjs && node tests/mobile.e2e.mjs && node tests/offline.e2e.mjs && node tests/engagement.e2e.mjs",
     "test:providers:live": "tsx tests/providers.live.ts",
     "test:desktop": "node tests/desktop.e2e.mjs"
   },
@@ -20,6 +20,7 @@
     "@fontsource/ibm-plex-sans": "^5.3.0",
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-http": "^2.8.3",
+    "chrono-node": "2.10.2",
     "dexie": "^4.0.11",
     "dexie-react-hooks": "^1.1.7",
     "lucide-react": "^0.544.0",
@@ -29,6 +30,7 @@
     "react-force-graph-2d": "^1.29.0",
     "react-is": "^19.1.1",
     "recharts": "^2.15.4",
+    "rrule": "2.8.1",
     "tweetnacl": "1.0.3",
     "zustand": "^5.0.8"
   },
