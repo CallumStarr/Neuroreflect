@@ -166,7 +166,7 @@ function InquiryTab({ turns, stream, ruminationActive, suggestDeeper, onGoDeeper
     <div className="flex flex-col gap-4">
       {ruminationActive ? (
         <div className="rounded-xl border border-rose-400/40 bg-rose-400/10 p-4">
-          <p className="text-[13.5px] font-medium text-rose-300">Your writing is circling</p>
+          <p className="text-[13.5px] font-medium text-rose-300">This may be going in circles</p>
           <p className="mt-1 text-[13px] leading-5 text-paper-300">
             Lots of &ldquo;I&rdquo;, strong negative feeling and little cause-and-effect language. Digging deeper tends to feed that loop, so questions now help you step back, or ask how rather than why.
           </p>

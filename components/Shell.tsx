@@ -262,7 +262,7 @@ export default function Shell() {
         </ViewBoundary>
       </main>
       {captureOpen && <QuickCapture onClose={() => setCaptureOpen(false)} />}
-      {helpOpen && <HelpPanel onClose={() => setHelpOpen(false)} />}
+      {helpOpen && <HelpPanel canSwitch onClose={() => setHelpOpen(false)} />}
       <Toasts />
     </div>
   );

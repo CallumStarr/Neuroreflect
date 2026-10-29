@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { LifeBuoy } from 'lucide-react';
+import { saveSettings } from '@/lib/db';
 import { EMERGENCY, HELP_CONTACTS, OUTSIDE_UK, type HelpContact } from '@/lib/safety';
+import { useUI } from '@/lib/store';
 import Dialog from './ui/Dialog';
 
 // Help that never depends on an AI provider, a connection or the journal being
@@ -67,7 +69,30 @@ export function HelpContacts({ compact }: { compact?: boolean }) {
   );
 }
 
-export default function HelpPanel({ onClose }: { onClose: () => void }) {
+// "This is too much": one press turns every prompt and suggestion off.
+function PlainPageSwitch({ onDone }: { onDone: () => void }) {
+  const level = useUI((s) => s.settings.guidance.level);
+  const setSettings = useUI((s) => s.setSettings);
+  return (
+    <div className="mt-4 border-t border-ink-800 pt-4">
+      <p className="text-[13px] text-paper-100">This is too much?</p>
+      <p className="mt-0.5 text-[12.5px] leading-5 text-paper-500">Switch to a plain page with no prompts or suggestions. You can change it back any time in Settings.</p>
+      <button
+        type="button"
+        disabled={level === 'blank'}
+        onClick={async () => {
+          setSettings(await saveSettings({ guidance: { level: 'blank' } }));
+          onDone();
+        }}
+        className="mt-3 rounded-lg border border-ink-700 px-3 py-1.5 text-[13px] text-paper-100 hover:bg-ink-900 disabled:opacity-50"
+      >
+        {level === 'blank' ? 'Already on a plain page' : 'Switch to plain writing'}
+      </button>
+    </div>
+  );
+}
+
+export default function HelpPanel({ onClose, canSwitch = false }: { onClose: () => void; canSwitch?: boolean }) {
   return (
     <Dialog
       label="Help now"
@@ -82,6 +107,7 @@ export default function HelpPanel({ onClose }: { onClose: () => void }) {
       onClose={onClose}
     >
       <HelpContacts />
+      {canSwitch && <PlainPageSwitch onDone={onClose} />}
       <p className="mt-4 border-t border-ink-800 pt-3 text-[12px] leading-5 text-paper-500">
         NeuroReflect is a journal, not a health service, and nothing in it is a substitute for talking to someone. Nothing you write is sent anywhere unless you set up an AI provider.
       </p>

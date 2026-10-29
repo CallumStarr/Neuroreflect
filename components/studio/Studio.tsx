@@ -86,6 +86,10 @@ export default function Studio() {
   const [telemetry, setTelemetry] = useState<Telemetry>(() => computeTelemetry([{ id: 'x', text: '' }], thresholds));
   const [trace, setTrace] = useState<TraceSample[]>([]);
   const [rumination, setRumination] = useState({ active: false, clearPasses: 0 });
+  // The step-back alert is a suggestion: Guided and Deep offer it, and it can be
+  // hidden for the rest of an entry. The guard behind it never switches off.
+  const [stepBackDismissed, setStepBackDismissed] = useState(false);
+  const stepBackActive = rumination.active && guided && !stepBackDismissed;
   const caretRef = useRef<Anchor | null>(null);
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   const [stream, setStream] = useState<StreamState>(IDLE_STREAM);
@@ -134,6 +138,7 @@ export default function Studio() {
       setTelemetry(t);
       setTrace([{ iTalk: t.iTalkDensity, cog: t.cogProcDensity, neg: t.negAffectDensity, fusion: t.fusionScore, gran: t.granularityIndex }]);
       setRumination({ active: t.ruminationFlag, clearPasses: 0 });
+      setStepBackDismissed(false);
       setStream(IDLE_STREAM);
       setPendingAnchor(null);
       setEventChipDismissed(false);
@@ -1018,7 +1023,18 @@ export default function Studio() {
           )}
         </div>
 
-        {!blank && <TelemetryBar telemetry={telemetry} trace={trace} thresholds={thresholds} ruminationActive={rumination.active} onStepBack={() => void requestCopilot('distancing')} busy={stream.active} />}
+        {!blank && (
+          <TelemetryBar
+            telemetry={telemetry}
+            trace={trace}
+            thresholds={thresholds}
+            ruminationActive={stepBackActive}
+            suggestionsOff={!guided}
+            onDismiss={() => setStepBackDismissed(true)}
+            onStepBack={() => void requestCopilot('distancing')}
+            busy={stream.active}
+          />
+        )}
       </div>
 
       {showPalette && <LensPicker onPick={onPalette} onClose={() => setShowPalette(false)} />}

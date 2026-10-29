@@ -178,7 +178,7 @@ export default function Settings() {
 
           <ValuesSection />
 
-          <Section title="Circuit-breaker" description="Notices when an entry starts circling. All four conditions must hold at once. It never sends anything by itself; it changes the next prompt to a step-back one.">
+          <Section title="Step-back suggestion" description="A guess from word counts, not a validated measure. When all four conditions hold at once, Guided and Deep offer a step-back prompt you can ignore, and any question you ask for steps back rather than digging deeper. It never sends anything anywhere.">
             <Thresholds draft={draft} setDraft={setDraft} persist={persist} />
           </Section>
 
