@@ -114,17 +114,26 @@ export interface ScheduleRow {
   updatedAt: string;
 }
 
-export function scheduleRowFor(reminders: DueReminder[], includeText: boolean): ScheduleRow {
-  return {
-    items: reminders.slice(0, 200).map((r) => (includeText ? { id: r.id, at: r.at, title: r.title, body: r.body } : { id: r.id, at: r.at })),
-    updatedAt: new Date().toISOString(),
-  };
+/** Items whose text is safe to keep unsealed, such as the writing nudge's locked wording. */
+export interface PlainScheduleItem {
+  id: string;
+  at: number;
+  title: string;
+  body: string;
+}
+
+export function scheduleRowFor(reminders: DueReminder[], includeText: boolean, plain: PlainScheduleItem[] = []): ScheduleRow {
+  const items: ScheduleRow['items'] = [
+    ...reminders.map((r) => (includeText ? { id: r.id, at: r.at, title: r.title, body: r.body } : { id: r.id, at: r.at })),
+    ...plain.map((p) => ({ id: p.id, at: p.at, title: p.title, body: p.body })),
+  ];
+  return { items: items.sort((a, b) => a.at - b.at).slice(0, 200), updatedAt: new Date().toISOString() };
 }
 
 let lastWritten = '';
 /** Keeps the unsealed schedule row in step; skips the write when nothing changed. */
-export async function writeSchedule(reminders: DueReminder[], includeText = false): Promise<void> {
-  const row = scheduleRowFor(reminders, includeText);
+export async function writeSchedule(reminders: DueReminder[], includeText = false, plain: PlainScheduleItem[] = []): Promise<void> {
+  const row = scheduleRowFor(reminders, includeText, plain);
   const signature = JSON.stringify(row.items);
   if (signature === lastWritten) return;
   lastWritten = signature;

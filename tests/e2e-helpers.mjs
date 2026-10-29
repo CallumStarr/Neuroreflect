@@ -76,6 +76,56 @@ export async function storedText(page) {
   );
 }
 
+/** True once an entry with this title is in storage, read with the raw API. */
+export async function hasStoredEntry(page, title) {
+  return page.evaluate(
+    (wanted) =>
+      new Promise((resolve) => {
+        const req = indexedDB.open('neuroreflect');
+        req.onerror = () => resolve(false);
+        req.onsuccess = () => {
+          const db = req.result;
+          try {
+            const all = db.transaction('entries', 'readonly').objectStore('entries').getAll();
+            all.onsuccess = () => {
+              db.close();
+              resolve(all.result.some((e) => e.title === wanted));
+            };
+            all.onerror = () => {
+              db.close();
+              resolve(false);
+            };
+          } catch {
+            db.close();
+            resolve(false);
+          }
+        };
+      }),
+    title,
+  );
+}
+
+/**
+ * Waits for the journal. A brand-new journal opens on the first session; these
+ * checks explore with the sample entries instead, as a new person can.
+ */
 export async function waitForJournal(page, timeout = 30000) {
-  await page.getByRole('button', { name: /^Finish$|^Re-finish$/ }).waitFor({ timeout });
+  const welcome = page.getByRole('button', { name: 'Explore with sample entries first' });
+  const finish = page.getByRole('button', { name: /^Finish$|^Re-finish$/ });
+  await welcome.or(finish).first().waitFor({ timeout });
+  // The welcome can appear a moment after the journal does.
+  await page.waitForTimeout(300);
+  if (await welcome.isVisible()) {
+    await welcome.click();
+    // The welcome closes once the samples are saved. The entries list is folded
+    // away on a phone, so check storage rather than the list. waitForFunction
+    // would not wait for a promise, so poll.
+    await page.getByTestId('welcome-dialog').waitFor({ state: 'hidden', timeout });
+    const until = Date.now() + timeout;
+    while (!(await hasStoredEntry(page, 'Review meeting'))) {
+      if (Date.now() > until) throw new Error('the sample entries were not saved');
+      await page.waitForTimeout(250);
+    }
+  }
+  await finish.waitFor({ timeout });
 }

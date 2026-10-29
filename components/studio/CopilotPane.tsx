@@ -49,6 +49,9 @@ interface Props {
   onRemoveMention: (id: string) => void;
   /** Narrow screens: the pane slides over the entry instead of sitting beside it. */
   overlay?: boolean;
+  /** Offer to leave a question for next time once the entry is finished. */
+  nextTimeQuestion?: boolean;
+  onNextQuestion?: (question: string | null) => void;
 }
 
 const TABS: { id: CopilotTab; label: string; icon: typeof Compass }[] = [
@@ -317,7 +320,68 @@ function ScoreBar({ score }: { score: number }) {
   );
 }
 
-function SynthesisTab({ entry, synthesis, finish, onFinish, values, alignments, mentions, onConfirmMention, onRemoveMention }: Props) {
+const NEXT_SUGGESTIONS = ['How did my small plan go?', 'What has changed since I wrote this?', 'What do I want to remember about this?'];
+
+/** An open loop the person chooses: one question that can open their next entry. */
+function NextQuestion({ value, onSave }: { value: string | null; onSave: (q: string | null) => void }) {
+  const [draft, setDraft] = useState('');
+  const [editing, setEditing] = useState(false);
+  if (value && !editing) {
+    return (
+      <section className="rounded-xl border border-ink-700 p-3.5" data-testid="next-question">
+        <h3 className="text-[12px] text-paper-500">Your question for next time</h3>
+        <p className="mt-1 font-serif text-[1rem] leading-6 text-paper-50">{value}</p>
+        <div className="mt-2 flex gap-3 text-[12px]">
+          <button type="button" onClick={() => { setDraft(value); setEditing(true); }} className="text-paper-500 underline decoration-ink-600 underline-offset-2 hover:text-paper-100">
+            Change
+          </button>
+          <button type="button" onClick={() => onSave(null)} className="text-paper-500 underline decoration-ink-600 underline-offset-2 hover:text-paper-100">
+            Remove
+          </button>
+        </div>
+      </section>
+    );
+  }
+  const save = (q: string) => {
+    const t = q.trim();
+    if (!t) return;
+    onSave(/[?]$/.test(t) ? t : `${t}?`);
+    setEditing(false);
+  };
+  return (
+    <section className="rounded-xl border border-dashed border-ink-700 p-3.5" data-testid="next-question">
+      <h3 className="text-[12px] text-paper-300">A question for next time?</h3>
+      <p className="mt-0.5 text-[12px] leading-5 text-paper-500">It opens your next entry, so you can pick up where you left off.</p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {NEXT_SUGGESTIONS.map((q) => (
+          <button key={q} type="button" onClick={() => save(q)} className="rounded-full border border-ink-700 px-2.5 py-0.5 text-[12px] text-paper-300 hover:border-ink-600 hover:text-paper-100">
+            {q}
+          </button>
+        ))}
+      </div>
+      <form
+        className="mt-2 flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save(draft);
+        }}
+      >
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          aria-label="Your question for next time"
+          placeholder="Or write your own"
+          className="min-w-0 flex-1 rounded-lg border border-ink-700 bg-ink-900 px-2.5 py-1.5 text-[13px] text-paper-50 placeholder:text-paper-500 focus:border-ember-400 focus:outline-none"
+        />
+        <button type="submit" disabled={!draft.trim()} className="rounded-lg border border-ink-700 px-2.5 py-1.5 text-[12.5px] text-paper-100 hover:bg-ink-900 disabled:opacity-40">
+          Save
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function SynthesisTab({ entry, synthesis, finish, onFinish, values, alignments, mentions, onConfirmMention, onRemoveMention, nextTimeQuestion, onNextQuestion }: Props) {
   if (finish.running) {
     return (
       <div aria-live="polite">
@@ -375,6 +439,8 @@ function SynthesisTab({ entry, synthesis, finish, onFinish, values, alignments, 
           Distil this entry
         </button>
       )}
+
+      {nextTimeQuestion && onNextQuestion && entry?.status === 'complete' && <NextQuestion value={entry.nextQuestion ?? null} onSave={onNextQuestion} />}
 
       {values.length > 0 && alignments.length > 0 && (
         <section>

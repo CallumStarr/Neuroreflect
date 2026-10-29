@@ -10,8 +10,8 @@
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
-    "test": "tsx tests/engine.test.ts && tsx tests/storage.test.ts && tsx tests/recall.test.ts && tsx tests/chat.test.ts && tsx tests/validation.test.ts",
-    "test:e2e": "node tests/e2e.mjs && node tests/recall.e2e.mjs && node tests/providers.e2e.mjs && node tests/lock.e2e.mjs && node tests/mobile.e2e.mjs && node tests/offline.e2e.mjs",
+    "test": "tsx tests/engine.test.ts && tsx tests/storage.test.ts && tsx tests/recall.test.ts && tsx tests/chat.test.ts && tsx tests/validation.test.ts && tsx tests/engagement.test.ts",
+    "test:e2e": "node tests/e2e.mjs && node tests/recall.e2e.mjs && node tests/providers.e2e.mjs && node tests/lock.e2e.mjs && node tests/mobile.e2e.mjs && node tests/offline.e2e.mjs && node tests/engagement.e2e.mjs",
     "test:providers:live": "tsx tests/providers.live.ts",
     "test:desktop": "node tests/desktop.e2e.mjs"
   },

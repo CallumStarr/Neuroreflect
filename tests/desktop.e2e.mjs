@@ -85,6 +85,14 @@ async function openApp() {
   caps.setBrowserName('wry');
   const d = await new Builder().withCapabilities(caps).usingServer('http://127.0.0.1:4444/').build();
   await d.wait(until.elementLocated(By.xpath("//button[normalize-space()='Finish' or normalize-space()='Re-finish']")), 60000);
+  // A fresh journal opens on the first session; these checks explore with the
+  // sample entries instead. The welcome closes once they are saved.
+  await sleep(500);
+  const explore = await d.findElements(By.xpath("//button[normalize-space()='Explore with sample entries first']"));
+  if (explore.length) {
+    await explore[0].click();
+    await d.wait(async () => (await d.findElements(By.css('[data-testid="welcome-dialog"]'))).length === 0, 30000);
+  }
   return d;
 }
 

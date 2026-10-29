@@ -15,10 +15,12 @@ import { mergeExport } from '@/lib/sync';
 import { isDesktop } from '@/lib/platform';
 import { EXPORT_ITERATIONS, buildExport, decryptExport, downloadJSON, encryptExport, parseImportFile, restoreExport, wipeAll, type ParsedImport } from '@/lib/vault';
 import { useLockState } from '../useLockState';
+import FiguresSection from './FiguresSection';
 import GuidanceSection from './GuidanceSection';
 import LockSection from './LockSection';
 import PlannerSection from './PlannerSection';
 import TemplatesSection from './TemplatesSection';
+import WritingTimeSection from './WritingTimeSection';
 import { Section, fieldCls, inputCls } from './ui';
 
 const PROVIDERS: { id: ProviderId; label: string; blurb: string }[] = [
@@ -71,6 +73,8 @@ export default function Settings() {
               className={`${fieldCls} mt-1 max-w-xs`}
             />
           </Section>
+
+          <WritingTimeSection />
 
           <GuidanceSection />
 
@@ -187,6 +191,8 @@ export default function Settings() {
           </Section>
 
           <PlannerSection />
+
+          <FiguresSection />
 
           <LockSection />
 

@@ -12,6 +12,7 @@ import { isDesktop } from '@/lib/platform';
 import { TAB_ORDER, useUI } from '@/lib/store';
 import { localDayOf } from '@/lib/util';
 import HelpPanel from './HelpPanel';
+import WelcomeDialog from './engagement/WelcomeDialog';
 import LockScreen from './LockScreen';
 import QuickCapture from './QuickCapture';
 import Sidebar from './Sidebar';
@@ -262,6 +263,7 @@ export default function Shell() {
         </ViewBoundary>
       </main>
       {captureOpen && <QuickCapture onClose={() => setCaptureOpen(false)} />}
+      {!settings.engagement.welcomeDone && <WelcomeDialog onDone={() => undefined} />}
       {helpOpen && <HelpPanel canSwitch onClose={() => setHelpOpen(false)} />}
       <Toasts />
     </div>

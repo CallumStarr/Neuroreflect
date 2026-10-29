@@ -4,6 +4,7 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
+import { waitForJournal } from './e2e-helpers.mjs';
 
 const BASE = process.argv[2] ?? 'http://localhost:3000';
 const SHOTS = process.argv[3] ?? path.resolve('tests/screenshots');
@@ -39,7 +40,7 @@ const status = () => page.locator('[data-testid="rumination-status"]').getAttrib
 
 try {
   await page.goto(BASE, { waitUntil: 'networkidle' });
-  await page.getByRole('button', { name: /^Finish$|^Re-finish$/ }).waitFor({ timeout: 30000 });
+  await waitForJournal(page);
   check('app boots and opens the journal', true);
 
   // Seed data present.

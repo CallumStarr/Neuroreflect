@@ -177,6 +177,28 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   migrations: [],
   lastOpenAt: null,
+  engagement: {
+    plan: null,
+    nudge: {
+      enabled: true,
+      delayMinutes: 60,
+      frequency: 'daily',
+      skipDay: null,
+      pausedUntil: null,
+      showEventNames: false,
+      backoffAnsweredAt: null,
+      fadeOfferedAt: null,
+    },
+    quietHours: { enabled: true, from: '22:00', to: '07:00' },
+    rhythm: null,
+    todaysQuestion: true,
+    valuedEntries: true,
+    nextTimeQuestion: true,
+    welcomeDone: false,
+    tester: false,
+    habitChecks: [],
+    seen: [],
+  },
 };
 
 type PlannerPatch = Partial<Omit<AppSettings['planner'], 'worryPeriod' | 'bedtimeList'>> & {
@@ -184,11 +206,17 @@ type PlannerPatch = Partial<Omit<AppSettings['planner'], 'worryPeriod' | 'bedtim
   bedtimeList?: Partial<AppSettings['planner']['bedtimeList']>;
 };
 
-export type SettingsPatch = Omit<Partial<AppSettings>, 'provider' | 'thresholds' | 'guidance' | 'planner'> & {
+type EngagementPatch = Partial<Omit<AppSettings['engagement'], 'nudge' | 'quietHours'>> & {
+  nudge?: Partial<AppSettings['engagement']['nudge']>;
+  quietHours?: Partial<AppSettings['engagement']['quietHours']>;
+};
+
+export type SettingsPatch = Omit<Partial<AppSettings>, 'provider' | 'thresholds' | 'guidance' | 'planner' | 'engagement'> & {
   provider?: Partial<AppSettings['provider']>;
   thresholds?: Partial<AppSettings['thresholds']>;
   guidance?: Partial<AppSettings['guidance']>;
   planner?: PlannerPatch;
+  engagement?: EngagementPatch;
 };
 
 function mergeSettings(base: AppSettings, patch: SettingsPatch): AppSettings {
@@ -205,6 +233,12 @@ function mergeSettings(base: AppSettings, patch: SettingsPatch): AppSettings {
     thresholds: { ...base.thresholds, ...(patch.thresholds ?? {}) },
     guidance: { ...base.guidance, ...(patch.guidance ?? {}), techniques: { ...base.guidance.techniques, ...(patch.guidance?.techniques ?? {}) } },
     planner,
+    engagement: {
+      ...base.engagement,
+      ...(patch.engagement ?? {}),
+      nudge: { ...base.engagement.nudge, ...(patch.engagement?.nudge ?? {}) },
+      quietHours: { ...base.engagement.quietHours, ...(patch.engagement?.quietHours ?? {}) },
+    },
     migrations: patch.migrations ?? base.migrations,
   };
 }

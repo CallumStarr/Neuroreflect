@@ -98,16 +98,19 @@ function isoAt(day: string, hour: number, minute = 0): string {
   return new Date(y, m - 1, d, hour, minute).toISOString();
 }
 
+/**
+ * A new journal starts empty, with the first session (components/engagement/
+ * WelcomeDialog.tsx); the sample entries are there for anyone who wants to look
+ * around first. A journal that already has entries skips the first session.
+ */
 export async function seedIfEmpty(): Promise<boolean> {
   const db = getDB();
   const settings = await loadSettings();
-  if (settings.seeded) return false;
   if ((await db.entries.count()) > 0) {
-    await saveSettings({ seeded: true });
+    if (!settings.seeded || !settings.engagement.welcomeDone) await saveSettings({ seeded: true, engagement: { welcomeDone: true } });
     return false;
   }
-  await seedDatabase();
-  return true;
+  return false;
 }
 
 export async function seedDatabase(): Promise<void> {
@@ -134,6 +137,8 @@ export async function seedDatabase(): Promise<void> {
       wordCount: countWords(s.paragraphs.join(' ')),
       activeSeconds: s.minutes * 60,
       inputSources: s.dictated ? ['typed', 'dictated'] : ['typed'],
+      // Sample entries are never part of "Was this worth your time?".
+      worthSkipped: true,
     };
     entryIds.push(entry.id);
     await db.entries.put(entry);

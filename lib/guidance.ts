@@ -8,6 +8,7 @@
 // immersed "why" question or starts backward-looking writing (Sbarra et al.);
 // and a topic the person asked to leave alone is never raised.
 
+import { questionFor, questionPromptId } from './daily-question';
 import { getDB, loadSettings } from './db';
 import { describeWhen, inSentence } from './nl-date';
 import { comingUp, loadAgendaData, recentlyPast, upcomingBig, type AgendaData, type Occurrence } from './planner';
@@ -18,6 +19,7 @@ import type {
   Block,
   CaptureNote,
   CoreValue,
+  EngagementSettings,
   EntryExercise,
   EntryPrompt,
   GoalId,
@@ -39,6 +41,10 @@ export interface RecentEntry {
   prompt: EntryPrompt | null;
   exercise: EntryExercise | null;
   circled: boolean;
+  /** A question the person left for next time when finishing. */
+  nextQuestion: string | null;
+  /** "Was this worth your time?", 1 to 5, when the person answered it. */
+  worth?: number | null;
 }
 
 export interface GuidanceContext {
@@ -46,6 +52,7 @@ export interface GuidanceContext {
   today: LocalDay;
   guidance: GuidanceSettings;
   planner: PlannerSettings;
+  engagement: Pick<EngagementSettings, 'todaysQuestion' | 'nextTimeQuestion'>;
   values: CoreValue[];
   /** Newest first, the last 30 days. */
   recent: RecentEntry[];
@@ -200,6 +207,16 @@ function canOffer(id: TechniqueId, ctx: GuidanceContext, circling: boolean): boo
   return true;
 }
 
+/** Today's question as a starter prompt, or null when it is switched off or answered today. */
+export function todaysQuestionPrompt(ctx: GuidanceContext, level: GuidanceSettings['level']): EntryPrompt | null {
+  if (!ctx.engagement.todaysQuestion || level === 'blank') return null;
+  const id = questionPromptId(ctx.today);
+  if (ctx.recent.some((e) => e.prompt?.id === id)) return null;
+  const pick = questionFor(ctx.today, ctx.guidance.avoidTopics, recentlyCircling(ctx.recent, ctx.today));
+  if (!pick) return null;
+  return { id, text: pick.question.text, reason: pick.gentle ? "Today's question, a gentle one." : "Today's question. Everyone using NeuroReflect gets the same one today.", level };
+}
+
 // ---------- the starter ----------
 
 export function pickStarter(ctx: GuidanceContext): StarterPick {
@@ -212,7 +229,8 @@ export function pickStarter(ctx: GuidanceContext): StarterPick {
     const prompts = rotate(OPEN_PROMPTS, recent)
       .filter(ok)
       .map((p) => ({ ...p, reason: 'An open start. Write about whatever comes.', level: 'open' as const }));
-    return { prompts, offer: null };
+    const q = todaysQuestionPrompt(ctx, 'open');
+    return { prompts: q ? [q, ...prompts] : prompts, offer: null };
   }
 
   const level = guidance.level;
@@ -231,6 +249,14 @@ export function pickStarter(ctx: GuidanceContext): StarterPick {
   for (const f of agenda.forecasts) {
     if (f.calibratedAt || f.targetDate > today || daysSince(f.targetDate, today) > 7) continue;
     if (add(`forecast:${f.id}`, `How did ${f.eventName} go?`, `You forecast how it would feel. The reality check above compares that with how it went.`)) forecastAsked.add(f.id);
+  }
+
+  // 1b. A question the person left themselves last time. Not after an entry that circled.
+  const lastDone = recent.find((e) => e.status === 'complete');
+  if (ctx.engagement.nextTimeQuestion && lastDone?.nextQuestion && !lastDone.circled && !recent.some((e) => e.prompt?.id === `next:${lastDone.id}`)) {
+    const ago = daysSince(lastDone.localDay, today);
+    const when = ago === 0 ? 'earlier today' : ago === 1 ? 'yesterday' : ago < 7 ? `on ${weekdayName(lastDone.localDay)}` : `on ${formatDay(lastDone.localDay, { day: 'numeric', month: 'long' })}`;
+    add(`next:${lastDone.id}`, lastDone.nextQuestion, `You left yourself this question ${when}.`);
   }
 
   // 2. Big events and planned things that matter, just past: "How did Thursday go?"
@@ -300,6 +326,10 @@ export function pickStarter(ctx: GuidanceContext): StarterPick {
   const reviewDay = new Date(ctx.now.getFullYear(), ctx.now.getMonth(), ctx.now.getDate()).getDay() === ctx.planner.weeklyReviewDay;
   if (reviewDay) add('weekly-review', 'What moved forward this week, even a little?', 'It is your weekly review day. The planner has the week side by side.');
 
+  // 8b. Today's question: the same for everyone today, gentler after an entry that circled.
+  const q = todaysQuestionPrompt(ctx, level);
+  if (q) add(q.id, q.text, q.reason);
+
   // 9. Goal prompts, rotated, then the general guided ones.
   const goalPrompts = guidance.goals.flatMap((g) => GOAL_PROMPTS[g].filter((p) => !(g === 'story' && circling)));
   for (const p of rotate(goalPrompts, recent)) add(p.id, p.text, 'From the goals you chose in setup.');
@@ -308,6 +338,19 @@ export function pickStarter(ctx: GuidanceContext): StarterPick {
   // Deep adds a technique when nothing in the planner called for one.
   if (!offer && level === 'deep') offer = pickTechnique(ctx, circling);
   return { prompts, offer };
+}
+
+/**
+ * How the person rated entries that used an exercise, from "Was this worth
+ * your time?": +1 when they found it worth it (4 or more on average), -2 when
+ * they didn't (2 or less), otherwise 0. Ratings come a while after writing, so
+ * an exercise that felt hard at the time isn't marked down for that.
+ */
+export function valuedBonus(recent: RecentEntry[], id: TechniqueId): number {
+  const scores = recent.filter((e) => e.exercise?.technique === id && typeof e.worth === 'number').map((e) => e.worth as number);
+  if (!scores.length) return 0;
+  const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+  return mean >= 4 ? 1 : mean <= 2 ? -2 : 0;
 }
 
 function pickTechnique(ctx: GuidanceContext, circling: boolean): TechniqueOffer | null {
@@ -333,12 +376,16 @@ function pickTechnique(ctx: GuidanceContext, circling: boolean): TechniqueOffer 
   const goals = new Set(guidance.goals);
   const byGoal = TECHNIQUES.filter((t) => t.id !== 'worry_period' && t.id !== 'expressive' && !t.part && canOffer(t.id, ctx, circling));
   const ranked = byGoal
-    .map((t) => ({ t, score: t.goals.filter((g) => goals.has(g)).length * 2 + (t.evidence === 'strong' ? 1 : 0), last: daysSince(lastUsedDay(recent, (e) => e.exercise?.technique === t.id), today) }))
+    .map((t) => {
+      const valued = valuedBonus(recent, t.id);
+      return { t, valued, score: t.goals.filter((g) => goals.has(g)).length * 2 + (t.evidence === 'strong' ? 1 : 0) + valued, last: daysSince(lastUsedDay(recent, (e) => e.exercise?.technique === t.id), today) };
+    })
     .filter((x) => x.score > 0 || goals.size === 0)
     .sort((a, b) => b.score - a.score || b.last - a.last);
   // Techniques that respond to a moment (a coming event, a hot entry) are offered live instead.
   const pick = ranked.find((x) => !['if_then_feelings', 'cool_down', 'emotion_naming', 'concrete_step'].includes(x.t.id));
-  return pick ? { technique: pick.t.id, reason: goals.size ? 'Matched to your goals.' : 'Something to try today.' } : null;
+  if (!pick) return null;
+  return { technique: pick.t.id, reason: pick.valued > 0 ? 'You found this worth your time before.' : goals.size ? 'Matched to your goals.' : 'Something to try today.' };
 }
 
 // ---------- live offers while writing ----------
@@ -397,8 +444,8 @@ export async function loadGuidanceContext(settings?: AppSettings, now: Date = ne
   const circled = new Set(telemetry.filter((t) => t.ruminationFlag).map((t) => t.entryId));
   const recent: RecentEntry[] = entries
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-    .map((e) => ({ id: e.id, localDay: e.localDay, status: e.status, prompt: e.prompt ?? null, exercise: e.exercise ?? null, circled: circled.has(e.id) }));
-  return { now, today, guidance: s.guidance, planner: s.planner, values, recent, agenda, threads, nodes, worries: notes };
+    .map((e) => ({ id: e.id, localDay: e.localDay, status: e.status, prompt: e.prompt ?? null, exercise: e.exercise ?? null, circled: circled.has(e.id), nextQuestion: e.nextQuestion ?? null, worth: e.worth?.score ?? null }));
+  return { now, today, guidance: s.guidance, planner: s.planner, engagement: s.engagement, values, recent, agenda, threads, nodes, worries: notes };
 }
 
 /** Items for the Coming up strip above the editor. */

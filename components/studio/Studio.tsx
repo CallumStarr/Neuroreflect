@@ -11,15 +11,18 @@ import { describeRepeat, describeWhen } from '@/lib/nl-date';
 import { findTaskSuggestions, type TaskSuggestion } from '@/lib/one-tap';
 import { runCopilot } from '@/lib/orchestrator';
 import { COMPLETION_STEPS, completeEntry, newEntry, rebuildGraph, saveDraft, saveTelemetry, writeRevision } from '@/lib/pipeline';
-import { addTask, deleteTask } from '@/lib/planner';
+import { addTask, deleteTask, loadAgendaData } from '@/lib/planner';
 import { computeTelemetry, detectFutureEvent, findCoarseLabels, nextRuminationState } from '@/lib/psych-engine';
 import { mentionsCrisis } from '@/lib/safety';
 import { useUI } from '@/lib/store';
 import { getTechnique, techniqueEnabled } from '@/lib/techniques';
 import type { Anchor, Block, CopilotMode, CopilotTurn, Entry, EntryExercise, EntryPrompt, GuidanceLevel, LensId, Telemetry, TechniqueId } from '@/lib/types';
 import { isDesktop } from '@/lib/platform';
-import { blocksToText, countWords, formatDay, sleep, uid } from '@/lib/util';
+import { blocksToText, countWords, formatDay, localDayOf, sleep, uid } from '@/lib/util';
 import GoalsSetup from '../GoalsSetup';
+import StudioCards from '../engagement/StudioCards';
+import WeekStrip from '../engagement/WeekStrip';
+import WeeklyReview from '../planner/WeeklyReview';
 import BlockEditor, { type AnchoredQuestion, type FocusRequest, type OneTapProps } from './BlockEditor';
 import CalibrationBanner from './CalibrationBanner';
 import CopilotPane, { type CopilotTab, type FinishProgress, type StreamState } from './CopilotPane';
@@ -106,6 +109,8 @@ export default function Studio() {
   const [paused, setPaused] = useState<{ short: boolean; offer: boolean }>({ short: false, offer: false });
   const [eventChipDismissed, setEventChipDismissed] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
+  const [weekOpen, setWeekOpen] = useState(false);
+  const weekAgenda = useLiveQuery(() => (weekOpen ? loadAgendaData() : null), [weekOpen]);
   // Guidance for this entry: the starter prompt and any technique offers.
   const [guidanceCtx, setGuidanceCtx] = useState<GuidanceContext | null>(null);
   const [starter, setStarter] = useState<{ pick: StarterPick; index: number } | null>(null);
@@ -852,7 +857,10 @@ export default function Studio() {
               <div className="mx-auto w-full max-w-[720px] px-4 pb-48 pt-6 sm:px-10 sm:pt-8">
                 <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
                   <GuidanceSlider level={level} onChange={(l) => void changeLevel(l)} />
+                  {!blank && <WeekStrip onOpenWeek={() => setWeekOpen(true)} />}
                 </div>
+
+                {!blank && <StudioCards entry={entry} fresh={isFresh} onOpenWeek={() => setWeekOpen(true)} onForecast={() => setShowForecast(true)} />}
 
                 {crisis && !crisisHidden && <CrisisCard onHide={() => setCrisisHidden(true)} onMore={() => setHelpOpen(true)} />}
 
@@ -1010,6 +1018,8 @@ export default function Studio() {
               onConfirmMention={confirmMention}
               onRemoveMention={removeMention}
               overlay={narrow}
+              nextTimeQuestion={settings.engagement.nextTimeQuestion}
+              onNextQuestion={(q) => updateEntry({ nextQuestion: q })}
             />
           )}
 
@@ -1039,6 +1049,7 @@ export default function Studio() {
 
       {showPalette && <LensPicker onPick={onPalette} onClose={() => setShowPalette(false)} />}
       {setupOpen && <GoalsSetup onClose={() => setSetupOpen(false)} />}
+      {weekOpen && weekAgenda && <WeeklyReview data={weekAgenda} today={localDayOf()} weekStartsOn={settings.planner.weekStartsOn} onClose={() => setWeekOpen(false)} />}
     </div>
   );
 }

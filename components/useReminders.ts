@@ -2,8 +2,10 @@
 
 // Keeps reminders running for as long as NeuroReflect is open. Unlocked, the
 // planner says what is due; locked, only the unsealed times are known, so the
-// reminder says "You have a reminder". The desktop app hands the list to its
-// Rust side; a browser tab sets its own timers and can only remind while open.
+// reminder says "You have a reminder". The daily writing nudge rides along with
+// the planner's reminders, and its locked text is never personal. The desktop
+// app hands the list to its Rust side; a browser tab sets its own timers and
+// can only remind while open.
 
 import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -11,6 +13,8 @@ import { create } from 'zustand';
 import { saveSettings } from '@/lib/db';
 import { onDesktopEvent, setDesktopReminders, takeFiredReminders } from '@/lib/desktop';
 import type { LockState } from '@/lib/lock';
+import { loadNudgeInputs } from '@/lib/engagement';
+import { planNudges } from '@/lib/nudge';
 import { loadAgendaData } from '@/lib/planner';
 import { isDesktop } from '@/lib/platform';
 import { LOCKED_REMINDER, markShown, missedReminders, readSchedule, upcomingReminders, writeSchedule, type DueReminder } from '@/lib/reminders';
@@ -64,12 +68,13 @@ export function useReminders(opened: boolean, lock: LockState) {
   recordRef.current = record;
 
   const showInApp = (item: Item) => {
+    const nudge = item.id.startsWith('nudge:');
     toast({
       id: `reminder:${item.id}`,
       title: item.title,
       body: item.body,
       sticky: true,
-      action: readable ? { label: 'Open the planner', run: () => useUI.getState().setTab('planner') } : undefined,
+      action: readable ? (nudge ? { label: 'Start writing', run: () => useUI.getState().setTab('studio') } : { label: 'Open the planner', run: () => useUI.getState().setTab('planner') }) : undefined,
     });
   };
 
@@ -101,16 +106,21 @@ export function useReminders(opened: boolean, lock: LockState) {
   const armRef = useRef(arm);
   armRef.current = arm;
 
-  // Unlocked: the planner says what is due.
+  // Unlocked: the planner says what is due, and the journal says when to nudge.
   const data = useLiveQuery(() => (readable ? loadAgendaData() : null), [readable, tick]);
+  const nudges = useLiveQuery(async () => (readable ? planNudges(await loadNudgeInputs(settings)) : null), [readable, tick, settings]);
   useEffect(() => {
-    if (!data) return;
+    if (!data || !nudges) return;
     const upcoming = upcomingReminders(data);
-    void writeSchedule(upcoming, settings.planner.reminderTextWhenLocked).catch(() => undefined);
-    const items: Item[] = upcoming.map((r) => ({ id: r.id, at: r.at, title: r.title, body: r.body, day: r.day }));
+    const nudgeRows = nudges.map((n) => ({ id: n.id, at: n.at, title: n.lockedText.title, body: n.lockedText.body }));
+    void writeSchedule(upcoming, settings.planner.reminderTextWhenLocked, nudgeRows).catch(() => undefined);
+    const items: Item[] = [
+      ...upcoming.map((r) => ({ id: r.id, at: r.at, title: r.title, body: r.body, day: r.day })),
+      ...nudges.map((n) => ({ id: n.id, at: n.at, title: n.text.title, body: n.text.body, day: n.day })),
+    ].sort((a, b) => a.at - b.at);
     if (desktop) void setDesktopReminders(items);
     else armRef.current(items);
-  }, [data, desktop, settings.planner.reminderTextWhenLocked]);
+  }, [data, nudges, desktop, settings.planner.reminderTextWhenLocked]);
 
   // Locked: only the times are known.
   useEffect(() => {

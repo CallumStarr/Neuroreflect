@@ -87,8 +87,8 @@ export default function ComingUpPanel({ data, today, onEvent, onTask, onWeeklyRe
       <button type="button" onClick={onWeeklyReview} className="flex items-center gap-2 rounded-xl border border-ink-700 px-3 py-2.5 text-left hover:bg-ink-900">
         <CalendarRange size={15} className="shrink-0 text-ember-400" />
         <span>
-          <span className="block text-[13px] text-paper-50">Week in review</span>
-          <span className="block text-[12px] text-paper-500">Done, let go, events and entries, side by side</span>
+          <span className="block text-[13px] text-paper-50">Your week</span>
+          <span className="block text-[12px] text-paper-500">Takeaways, plans, forecasts, and what got done</span>
         </span>
       </button>
     </div>

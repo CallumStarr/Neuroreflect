@@ -28,6 +28,12 @@ export interface Entry {
   exercise?: EntryExercise | null;
   /** One-tap suggestions the person dismissed, by paragraph and sentence. */
   dismissedSuggestions?: string[];
+  /** A question the person left themselves when finishing, which can open the next entry. */
+  nextQuestion?: string | null;
+  /** "Was this worth your time?", asked at a later visit for one entry in five at most. */
+  worth?: { score: 1 | 2 | 3 | 4 | 5; at: ISODate } | null;
+  /** Set when the person skipped that question for this entry. */
+  worthSkipped?: boolean;
 }
 
 export interface EntryRevision {
@@ -206,6 +212,56 @@ export interface RuminationThresholds {
   cogProcMax: number;
 }
 
+/** When and where the person plans to write: a moment in their day, not just a clock time. */
+export interface WritingPlan {
+  /** In the person's words, such as "after dinner". */
+  moment: string;
+  /** Roughly when that moment comes, "HH:MM". */
+  usualTime: string;
+  /** Optional, such as "at the kitchen table". */
+  place: string;
+  /** When the moment or its time was last set, so the nudge only steps back after three full weeks of this plan. */
+  setAt?: ISODate;
+}
+
+export interface EngagementSettings {
+  /** Set at the end of the first session; null until the person makes one. */
+  plan: WritingPlan | null;
+  nudge: {
+    /** One nudge a day at most, only if nothing has been written by then. */
+    enabled: boolean;
+    /** Minutes after the usual time. The routine is the cue; the nudge is the backup. */
+    delayMinutes: number;
+    /** 'weekly' sends it only on the review day, for people who write without it. */
+    frequency: 'daily' | 'weekly';
+    /** No nudge on these days: "Not today", or a pause. */
+    skipDay: LocalDay | null;
+    pausedUntil: LocalDay | null;
+    /** Event names appear in a nudge only if the person turns this on. */
+    showEventNames: boolean;
+    /** When the person last answered the offer that follows three ignored nudges. */
+    backoffAnsweredAt: ISODate | null;
+    /** When the offer to switch the nudge off or make it weekly was last shown. */
+    fadeOfferedAt: ISODate | null;
+  };
+  quietHours: { enabled: boolean; from: string; to: string };
+  /** Days a week the person aims to write. Null: no rhythm. Nothing ever resets. */
+  rhythm: number | null;
+  todaysQuestion: boolean;
+  /** "Was this worth your time?" for one entry in five at most. */
+  valuedEntries: boolean;
+  /** Offer to leave a question for next time when finishing an entry. */
+  nextTimeQuestion: boolean;
+  /** The first session has been completed or skipped. */
+  welcomeDone: boolean;
+  /** Tester: offers the four-question habit check every four weeks and the usage summary. */
+  tester: boolean;
+  /** Answers to the habit check: the mean of four items, 1 to 7. */
+  habitChecks: { at: ISODate; score: number }[];
+  /** Dismissed cards, by id, so each is shown once. */
+  seen: string[];
+}
+
 export interface AppSettings {
   userName: string;
   provider: ProviderSettings;
@@ -217,6 +273,7 @@ export interface AppSettings {
   migrations: string[];
   /** Last time the journal was open, for reminders missed while it was closed. */
   lastOpenAt: ISODate | null;
+  engagement: EngagementSettings;
 }
 
 export interface SettingRow {
