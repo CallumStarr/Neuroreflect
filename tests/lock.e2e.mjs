@@ -21,7 +21,7 @@ async function unlockWith(p, passphrase) {
 }
 
 async function openVault() {
-  await page.getByTitle('Vault (Alt+4)').click();
+  await page.getByTitle('Vault (Alt+5)').click();
   await page.getByRole('heading', { name: 'Settings and vault' }).waitFor();
 }
 

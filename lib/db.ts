@@ -179,17 +179,25 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lastOpenAt: null,
 };
 
-type SettingsPatch = Omit<Partial<AppSettings>, 'provider' | 'thresholds' | 'guidance' | 'planner'> & {
+type PlannerPatch = Partial<Omit<AppSettings['planner'], 'worryPeriod' | 'bedtimeList'>> & {
+  worryPeriod?: Partial<AppSettings['planner']['worryPeriod']>;
+  bedtimeList?: Partial<AppSettings['planner']['bedtimeList']>;
+};
+
+export type SettingsPatch = Omit<Partial<AppSettings>, 'provider' | 'thresholds' | 'guidance' | 'planner'> & {
   provider?: Partial<AppSettings['provider']>;
   thresholds?: Partial<AppSettings['thresholds']>;
   guidance?: Partial<AppSettings['guidance']>;
-  planner?: Partial<AppSettings['planner']>;
+  planner?: PlannerPatch;
 };
 
 function mergeSettings(base: AppSettings, patch: SettingsPatch): AppSettings {
-  const planner = { ...base.planner, ...(patch.planner ?? {}) };
-  planner.worryPeriod = { ...base.planner.worryPeriod, ...(patch.planner?.worryPeriod ?? {}) };
-  planner.bedtimeList = { ...base.planner.bedtimeList, ...(patch.planner?.bedtimeList ?? {}) };
+  const planner: AppSettings['planner'] = {
+    ...base.planner,
+    ...(patch.planner ?? {}),
+    worryPeriod: { ...base.planner.worryPeriod, ...(patch.planner?.worryPeriod ?? {}) },
+    bedtimeList: { ...base.planner.bedtimeList, ...(patch.planner?.bedtimeList ?? {}) },
+  };
   return {
     ...base,
     ...patch,

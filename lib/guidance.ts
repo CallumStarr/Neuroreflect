@@ -9,7 +9,7 @@
 // and a topic the person asked to leave alone is never raised.
 
 import { getDB, loadSettings } from './db';
-import { describeWhen } from './nl-date';
+import { describeWhen, inSentence } from './nl-date';
 import { comingUp, loadAgendaData, recentlyPast, upcomingBig, type AgendaData, type Occurrence } from './planner';
 import { detectFutureEvent, findFusionSpans } from './psych-engine';
 import { getTechnique, techniqueEnabled, TECHNIQUES } from './techniques';
@@ -181,7 +181,7 @@ function weekdayName(day: LocalDay): string {
 
 function occurrenceWhen(o: Occurrence, today: LocalDay): string {
   const label = describeWhen(o.day, o.startTime, today);
-  return label.charAt(0).toLowerCase() + label.slice(1);
+  return inSentence(label);
 }
 
 function lastSession(recent: RecentEntry[], id: TechniqueId): EntryExercise | null {

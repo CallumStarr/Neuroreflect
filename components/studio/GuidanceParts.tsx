@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { CalendarDays, Check, LifeBuoy, RefreshCw, Sparkles, X } from 'lucide-react';
-import { describeWhen, formatTime, parseWhen, stripWhen } from '@/lib/nl-date';
+import { describeWhen, formatTime, inSentence, parseWhen, stripWhen } from '@/lib/nl-date';
 import type { AgendaItem } from '@/lib/planner';
 import { addTask } from '@/lib/planner';
 import { EVIDENCE, getTechnique, LEVELS } from '@/lib/techniques';
@@ -52,7 +52,7 @@ export function ComingUpStrip({ items, onOpen }: { items: AgendaItem[]; onOpen: 
       <span className="shrink-0 text-paper-500">Coming up</span>
       <span className="truncate">
         {items
-          .map((i) => `${i.title} ${describeWhen(i.day, null, today).toLowerCase()}${i.time ? ` ${formatTime(i.time)}` : ''}`)
+          .map((i) => `${i.title} ${inSentence(describeWhen(i.day, null, today))}${i.time ? ` ${formatTime(i.time)}` : ''}`)
           .join('  ·  ')}
       </span>
     </button>

@@ -44,6 +44,7 @@ try {
 
   // Seed data present.
   const rail = page.getByRole('complementary', { name: 'Entries' });
+  await rail.getByText('Review meeting', { exact: true }).waitFor({ timeout: 10000 });
   for (const title of ['Before the leadership presentation', 'It went better than my brain said it would', 'Review meeting', 'Stepping back']) {
     check(`seed entry present: ${title}`, (await rail.getByText(title, { exact: true }).count()) === 1);
   }
@@ -78,7 +79,7 @@ try {
   await page.keyboard.type(words.slice(60).join(' '), { delay: 2 });
   await page.waitForTimeout(900);
   check('breaker fires in real time once past 100 words', (await status()) === 'active', `state=${await status()}`);
-  check('co-pilot switches to step-back strategy', await page.getByText('Your writing is circling').isVisible());
+  check('co-pilot switches to step-back strategy', await page.getByText('This may be going in circles').first().isVisible());
   await shot('04-live-rumination-detected');
 
   // Ctrl+Enter now asks for a distancing prompt, inline, with an answer paragraph.
@@ -102,21 +103,21 @@ try {
   check('hovering a fused phrase opens the reframe card', true);
   await page.waitForTimeout(450); // let the fade-in finish before capturing
   await shot('06-reframe-card');
-  const before = await page.locator('[data-testid="rumination-status"]').evaluate(() => document.body.innerText.match(/Defusion\s+(\d+)/)?.[1]);
+  const before = await page.locator('[data-testid="rumination-status"]').evaluate(() => document.body.innerText.match(/Distance\s+(\d+)/)?.[1]);
   await reframe.getByRole('button', { name: 'Rewrite as a noticed thought' }).click();
   await page.waitForTimeout(700);
   const allText = await page.locator('textarea').evaluateAll((els) => els.map((e) => e.value).join(' '));
   check('reframe rewrites the sentence as a noticed thought', allText.includes("I'm noticing the thought that"));
-  const after = await page.evaluate(() => document.body.innerText.match(/Defusion\s+(\d+)/)?.[1]);
-  check('defusion score rises after reframing', Number(after) > Number(before), `${before} -> ${after}`);
+  const after = await page.evaluate(() => document.body.innerText.match(/Distance\s+(\d+)/)?.[1]);
+  check('distance score rises after reframing', Number(after) > Number(before), `${before} -> ${after}`);
 
-  // Ctrl+K lens picker, CBT thought record.
+  // Ctrl+K lens picker, thought check.
   await page.keyboard.press('Control+k');
   await page.getByRole('dialog', { name: 'Mental model lenses and actions' }).waitFor();
-  await page.keyboard.type('CBT');
+  await page.keyboard.type('Thought');
   await page.keyboard.press('Enter');
-  await page.getByText('Automatic thought:', { exact: false }).first().waitFor({ timeout: 15000 });
-  check('Ctrl+K lens picker runs the CBT thought record', true);
+  await page.getByText('The thought:', { exact: false }).first().waitFor({ timeout: 15000 });
+  check('Ctrl+K lens picker runs the thought check', true);
   await page.waitForTimeout(1200);
   await shot('07-cbt-lens');
 
@@ -130,7 +131,7 @@ try {
   // Finish the entry: synthesis, values, remembered entities.
   await page.keyboard.press('Control+Shift+Enter');
   await page.getByText('Key takeaway').waitFor({ timeout: 20000 });
-  check('finishing produces a synthesis', await page.getByText('One micro-action').isVisible());
+  check('finishing produces a synthesis', await page.getByText('One small plan').isVisible());
   check('finishing extracts entities for the graph', (await page.getByText('Remembered from this entry').count()) === 1);
   await shot('08-synthesis');
 
@@ -141,7 +142,7 @@ try {
   await shot('09-name-it');
 
   // Dashboard.
-  await page.getByTitle('Telemetry (Alt+2)').click();
+  await page.getByTitle('Patterns (Alt+3)').click();
   await page.getByTestId('hero-error').waitFor({ timeout: 10000 });
   const hero = await page.getByTestId('hero-error').innerText();
   check('dashboard hero shows average forecast error', /^[+-]?\d+$/.test(hero.trim()), hero.trim());
@@ -153,12 +154,12 @@ try {
   await page.getByText('Self-focus and sense-making').scrollIntoViewIfNeeded();
   await page.waitForTimeout(300);
   await shot('10b-dashboard-lower');
-  await page.getByRole('heading', { name: 'Psychological telemetry' }).scrollIntoViewIfNeeded();
+  await page.getByRole('heading', { name: 'Patterns in your writing' }).scrollIntoViewIfNeeded();
   await page.getByRole('button', { name: 'Show table' }).first().click();
   check('chart table view available', (await page.locator('table').count()) >= 1);
 
   // Memory graph.
-  await page.getByTitle('Memory (Alt+3)').click();
+  await page.getByTitle('Memory (Alt+4)').click();
   await page.getByTestId('graph-canvas').locator('canvas').first().waitFor({ timeout: 10000 });
   await page.waitForTimeout(3500);
   check('memory graph renders a canvas', true);
@@ -208,11 +209,11 @@ try {
   await timelineList.locator('li button').first().click();
   await page.getByRole('button', { name: /^Finish$|^Re-finish$/ }).waitFor({ timeout: 10000 });
   check('choosing an entry on the timeline opens it in the journal', (await page.locator('textarea').evaluateAll((els) => els.map((e) => e.value).join(' '))).includes('Everyone thinks I am useless'));
-  await page.getByTitle('Memory (Alt+3)').click();
+  await page.getByTitle('Memory (Alt+4)').click();
   await page.getByRole('radio', { name: 'Graph' }).click();
 
   // Settings and vault: export raw, export encrypted, re-import encrypted.
-  await page.getByTitle('Vault (Alt+4)').click();
+  await page.getByTitle('Vault (Alt+5)').click();
   await page.getByRole('heading', { name: 'Settings and vault' }).waitFor();
   await shot('13-settings');
   const [rawDl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Readable JSON' }).click()]);
@@ -227,7 +228,7 @@ try {
   await encDl.saveAs(encPath);
   const enc = JSON.parse(fs.readFileSync(encPath, 'utf8'));
   check('encrypted export hides content', enc.format === 'encrypted' && !fs.readFileSync(encPath, 'utf8').includes('Review meeting'));
-  await page.locator('input[type=file]').setInputFiles(encPath);
+  await page.getByTestId('vault-import-input').setInputFiles(encPath);
   await page.getByLabel('Import passphrase').fill('wrong passphrase');
   await page.getByRole('button', { name: 'Replace my journal' }).click();
   await page.getByText('That passphrase does not unlock this file.').waitFor({ timeout: 15000 });

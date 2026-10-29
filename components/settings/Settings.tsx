@@ -15,7 +15,9 @@ import { mergeExport } from '@/lib/sync';
 import { isDesktop } from '@/lib/platform';
 import { EXPORT_ITERATIONS, buildExport, decryptExport, downloadJSON, encryptExport, parseImportFile, restoreExport, wipeAll, type ParsedImport } from '@/lib/vault';
 import { useLockState } from '../useLockState';
+import GuidanceSection from './GuidanceSection';
 import LockSection from './LockSection';
+import PlannerSection from './PlannerSection';
 import TemplatesSection from './TemplatesSection';
 import { Section, fieldCls, inputCls } from './ui';
 
@@ -69,6 +71,8 @@ export default function Settings() {
               className={`${fieldCls} mt-1 max-w-xs`}
             />
           </Section>
+
+          <GuidanceSection />
 
           <Section title="AI co-pilot" description="Every feature works with the built-in engine. A model adds more natural questions and syntheses.">
             <div className="grid gap-2" role="radiogroup" aria-label="AI provider">
@@ -181,6 +185,8 @@ export default function Settings() {
           <Section title="Step-back suggestion" description="A guess from word counts, not a validated measure. When all four conditions hold at once, Guided and Deep offer a step-back prompt you can ignore, and any question you ask for steps back rather than digging deeper. It never sends anything anywhere.">
             <Thresholds draft={draft} setDraft={setDraft} persist={persist} />
           </Section>
+
+          <PlannerSection />
 
           <LockSection />
 
@@ -445,7 +451,7 @@ function VaultSection({ onRestored, lockOn }: { onRestored: () => Promise<void>;
 
         <div>
           <p className="text-[13px] text-paper-100">Import</p>
-          <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+          <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} data-testid="vault-import-input" />
           <button type="button" onClick={() => fileRef.current?.click()} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-3 py-2 text-[13px] text-paper-100 hover:bg-ink-900">
             <Upload size={14} /> Choose a NeuroReflect export
           </button>

@@ -256,6 +256,11 @@ export function formatTime(time: string | null): string {
 }
 
 /** "Today", "Tomorrow", "Fri 23 Oct", with the time when there is one. */
+/** A describeWhen label for use mid-sentence: "today" and "tomorrow" go lower case, day names stay capitalised. */
+export function inSentence(label: string): string {
+  return /^(Today|Tomorrow|Yesterday)\b/.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : label;
+}
+
 export function describeWhen(day: LocalDay | null, time: string | null, today: LocalDay = localDayOf()): string {
   if (!day) return time ? formatTime(time) : 'No date';
   const [y, m, d] = day.split('-').map(Number);
