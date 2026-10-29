@@ -2,9 +2,11 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Sparkles, X } from 'lucide-react';
+import type { TaskSuggestion } from '@/lib/one-tap';
 import { familiesForCoarse, findCoarseLabels, findFusionSpans, patternName, type FusionSpan, type LabelSpan } from '@/lib/psych-engine';
 import type { Anchor, Block } from '@/lib/types';
 import { uid } from '@/lib/util';
+import OneTapChip, { type AddedNote } from './OneTapChip';
 
 export interface FocusRequest {
   blockId: string;
@@ -14,8 +16,19 @@ export interface FocusRequest {
 
 export interface AnchoredQuestion {
   text: string;
-  mode: 'socratic' | 'distancing';
+  mode: 'socratic' | 'distancing' | 'concrete' | 'exercise';
   streaming: boolean;
+  /** Overrides the small label above the question, for exercise steps. */
+  label?: string;
+}
+
+export interface OneTapProps {
+  suggestions: Record<string, TaskSuggestion[]>;
+  added: Record<string, AddedNote>;
+  onAdd: (s: TaskSuggestion, keepDate: boolean) => void;
+  onDismiss: (s: TaskSuggestion) => void;
+  onUndo: (note: AddedNote) => void;
+  onOpen: (note: AddedNote) => void;
 }
 
 interface Props {
@@ -25,6 +38,10 @@ interface Props {
   onActivity: () => void;
   focusRequest: FocusRequest | null;
   anchored: Record<string, AnchoredQuestion>;
+  /** Underline fused phrases and broad feeling words. Off on the Blank page level. */
+  showMarks?: boolean;
+  oneTap?: OneTapProps | null;
+  placeholder?: string;
 }
 
 type Mark =
@@ -33,12 +50,14 @@ type Mark =
   | { kind: 'coarse'; start: number; end: number; label: LabelSpan }
   | { kind: 'tag'; start: number; end: number };
 
-function marksFor(block: Block): Mark[] {
+function marksFor(block: Block, analyse = true): Mark[] {
   const marks: Mark[] = [];
-  for (const s of findFusionSpans([block])) marks.push({ kind: s.defused ? 'defused' : 'fused', start: s.start, end: s.end, span: s });
-  for (const l of findCoarseLabels([block])) {
-    if (marks.some((m) => l.start < m.end && l.end > m.start)) continue;
-    marks.push({ kind: 'coarse', start: l.start, end: l.end, label: l });
+  if (analyse) {
+    for (const s of findFusionSpans([block])) marks.push({ kind: s.defused ? 'defused' : 'fused', start: s.start, end: s.end, span: s });
+    for (const l of findCoarseLabels([block])) {
+      if (marks.some((m) => l.start < m.end && l.end > m.start)) continue;
+      marks.push({ kind: 'coarse', start: l.start, end: l.end, label: l });
+    }
   }
   const tagRe = /(^|\s)([@#$][A-Za-z][\w-]*)/g;
   let m: RegExpExecArray | null;
@@ -65,6 +84,10 @@ interface BlockRowProps {
   index: number;
   placeholder: string;
   question?: AnchoredQuestion;
+  showMarks: boolean;
+  suggestions?: TaskSuggestion[];
+  added?: AddedNote[];
+  oneTap?: OneTapProps | null;
   registerRef: (id: string, el: HTMLTextAreaElement | null) => void;
   registerBackdrop: (id: string, el: HTMLDivElement | null) => void;
   onText: (id: string, text: string) => void;
@@ -76,9 +99,9 @@ interface BlockRowProps {
 }
 
 const BlockRow = memo(function BlockRow(props: BlockRowProps) {
-  const { block, placeholder, question, registerRef, registerBackdrop, onText, onKey, onCaretMove, onHoverMove, onHoverLeave, onPasteLines, index } = props;
+  const { block, placeholder, question, registerRef, registerBackdrop, onText, onKey, onCaretMove, onHoverMove, onHoverLeave, onPasteLines, index, showMarks, suggestions, added, oneTap } = props;
   const ref = useRef<HTMLTextAreaElement | null>(null);
-  const marks = useMemo(() => marksFor(block), [block]);
+  const marks = useMemo(() => marksFor(block, showMarks), [block, showMarks]);
 
   const resize = useCallback(() => {
     const el = ref.current;
@@ -113,7 +136,7 @@ const BlockRow = memo(function BlockRow(props: BlockRowProps) {
     <div className="group/block">
       {question && (
         <div className="nr-rise mb-2 mt-5 border-l-2 border-ember-500/70 pl-4" data-anchored-question>
-          <p className="text-[12px] text-paper-500">{question.mode === 'distancing' ? 'A step back' : 'A question'}</p>
+          <p className="text-[12px] text-paper-500">{question.label ?? (question.mode === 'distancing' ? 'A step back' : question.mode === 'concrete' ? 'How, not why' : 'A question')}</p>
           <p className={`mt-0.5 font-serif text-[1.02rem] italic leading-7 text-paper-100 ${question.streaming ? 'nr-caret' : ''}`}>{question.text}</p>
         </div>
       )}
@@ -146,6 +169,12 @@ const BlockRow = memo(function BlockRow(props: BlockRowProps) {
             }
           }}
         />
+        {oneTap &&
+          (added ?? []).map((note) => <OneTapChip key={`added:${note.key}`} suggestion={{ key: note.key, blockId: block.id, sentence: '', title: note.label, when: null }} added={note} onAdd={oneTap.onAdd} onDismiss={oneTap.onDismiss} onUndo={oneTap.onUndo} onOpen={oneTap.onOpen} />)}
+        {oneTap &&
+          (suggestions ?? []).map((sug) => (
+            <OneTapChip key={sug.key} suggestion={sug} added={null} onAdd={oneTap.onAdd} onDismiss={oneTap.onDismiss} onUndo={oneTap.onUndo} onOpen={oneTap.onOpen} />
+          ))}
       </div>
     </div>
   );
@@ -159,13 +188,23 @@ interface PopoverState {
   via: 'hover' | 'caret';
 }
 
-export default function BlockEditor({ blocks, onChange, onCaret, onActivity, focusRequest, anchored }: Props) {
+export default function BlockEditor({ blocks, onChange, onCaret, onActivity, focusRequest, anchored, showMarks = true, oneTap = null, placeholder }: Props) {
   const refs = useRef(new Map<string, HTMLTextAreaElement>());
   const backdrops = useRef(new Map<string, HTMLDivElement>());
   const containerRef = useRef<HTMLDivElement | null>(null);
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
   const [popover, setPopover] = useState<PopoverState | null>(null);
+  // Grouped once per change, so unchanged paragraphs don't re-render on every keystroke.
+  const addedSource = oneTap?.added;
+  const addedByBlock = useMemo(() => {
+    const out: Record<string, AddedNote[]> = {};
+    for (const note of Object.values(addedSource ?? {})) {
+      const blockId = note.key.split(':')[0];
+      (out[blockId] ??= []).push(note);
+    }
+    return out;
+  }, [addedSource]);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingFocus = useRef<{ id: string; offset: number } | null>(null);
 
@@ -321,7 +360,7 @@ export default function BlockEditor({ blocks, onChange, onCaret, onActivity, foc
     const bd = backdrops.current.get(blockId);
     const block = blocksRef.current.find((b) => b.id === blockId);
     if (!bd || !block) return null;
-    const marks = marksFor(block);
+    const marks = marksFor(block, showMarks);
     const nodes = bd.querySelectorAll<HTMLSpanElement>('[data-mark]');
     for (const node of nodes) {
       const i = Number(node.dataset.mark);
@@ -332,7 +371,7 @@ export default function BlockEditor({ blocks, onChange, onCaret, onActivity, foc
       }
     }
     return null;
-  }, []);
+  }, [showMarks]);
 
   const onHoverMove = useCallback(
     (blockId: string, e: React.MouseEvent<HTMLTextAreaElement>) => {
@@ -368,7 +407,7 @@ export default function BlockEditor({ blocks, onChange, onCaret, onActivity, foc
       const block = blocksRef.current.find((b) => b.id === id);
       if (!block || el.selectionStart !== el.selectionEnd) return;
       const pos = el.selectionStart;
-      const m = marksFor(block).find((x) => x.kind !== 'tag' && pos > x.start && pos < x.end);
+      const m = marksFor(block, showMarks).find((x) => x.kind !== 'tag' && pos > x.start && pos < x.end);
       if (!m) {
         setPopover((p) => (p?.via === 'caret' ? null : p));
         return;
@@ -377,14 +416,14 @@ export default function BlockEditor({ blocks, onChange, onCaret, onActivity, foc
       const node = bd?.querySelector<HTMLSpanElement>(`[data-mark][data-kind="${m.kind}"]`);
       const nodes = bd ? Array.from(bd.querySelectorAll<HTMLSpanElement>('[data-mark]')) : [];
       const exact = nodes.find((n) => {
-        const mk = marksFor(block)[Number(n.dataset.mark)];
+        const mk = marksFor(block, showMarks)[Number(n.dataset.mark)];
         return mk && mk.start === m.start;
       });
       const rects = (exact ?? node)?.getClientRects();
       const rect = rects && rects.length ? rects[rects.length - 1] : el.getBoundingClientRect();
       setPopover((p) => (p && p.blockId === id && p.mark.start === m.start ? p : { blockId: id, mark: m, ...positionFor(rect), via: 'caret' }));
     },
-    [onCaret, positionFor],
+    [onCaret, positionFor, showMarks],
   );
 
   const replaceRange = useCallback(
@@ -439,10 +478,14 @@ export default function BlockEditor({ blocks, onChange, onCaret, onActivity, foc
             anchored[block.id]
               ? 'Write your answer'
               : index === 0 && blocks.length === 1
-                ? 'Start anywhere. What is on your mind?'
+                ? (placeholder ?? 'Start anywhere. What is on your mind?')
                 : ''
           }
           question={anchored[block.id]}
+          showMarks={showMarks}
+          suggestions={oneTap?.suggestions[block.id]}
+          added={addedByBlock[block.id]}
+          oneTap={oneTap}
           registerRef={registerRef}
           registerBackdrop={registerBackdrop}
           onText={onText}

@@ -79,9 +79,10 @@ async function main() {
   v1.close();
 
   await getDB().open();
-  await check('a version 1 journal upgrades: nodes kept, name index gone, mirrored prompts cleared, memory tables added', async () => {
+  await check('a version 1 journal upgrades: nodes kept, name index gone, mirrored prompts cleared, memory and planner tables added', async () => {
     const db = getDB();
-    assert.equal(db.verno, 3);
+    assert.equal(db.verno, 4);
+    for (const t of ['events', 'tasks', 'notes', 'reminderLog', 'feelingChecks']) assert.ok(db.tables.some((x) => x.name === t), `missing table ${t}`);
     assert.equal((await db.nodes.get('n_old'))?.label, 'Morwenna');
     assert.ok(!db.nodes.schema.indexes.some((i) => String(i.keyPath).includes('normalised')));
     assert.equal(await db.promptTemplates.count(), 0);

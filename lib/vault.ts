@@ -7,9 +7,9 @@
 // rows pass through the lock middleware and arrive decrypted. The lock's own
 // metadata never leaves the device, and import keeps this device's lock.
 
-import { DERIVED_TABLES, TABLE_NAMES, getDB, loadSettings, type TableName } from './db';
+import { DERIVED_TABLES, DEVICE_TABLES, TABLE_NAMES, getDB, loadSettings, type TableName } from './db';
 import { eraseAll } from './lock';
-import { LOCK_ROW_KEY } from './lock-core';
+import { LOCK_ROW_KEY, SCHEDULE_ROW_KEY } from './lock-core';
 import { rebuildMemoryArtifacts } from './memory';
 import { saveTextFile } from './platform';
 import type { AppSettings } from './types';
@@ -35,7 +35,11 @@ export interface EncryptedExport {
 
 export const EXPORT_ITERATIONS = 600000;
 
-const isLockRow = (row: unknown) => (row as { key?: unknown } | null)?.key === LOCK_ROW_KEY;
+// Rows about this device, not the journal: the lock and the reminder times.
+const isLockRow = (row: unknown) => {
+  const key = (row as { key?: unknown } | null)?.key;
+  return key === LOCK_ROW_KEY || key === SCHEDULE_ROW_KEY;
+};
 
 async function deriveKey(passphrase: string, salt: Uint8Array<ArrayBuffer>, iterations: number): Promise<CryptoKey> {
   const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey']);
@@ -50,8 +54,9 @@ export async function buildExport(includeApiKeys: boolean): Promise<RawExport> {
   const db = getDB();
   const tables: Partial<Record<TableName, unknown[]>> = {};
   for (const name of TABLE_NAMES) {
-    // The search index, moments and threads are rebuilt from entries after import.
-    if (DERIVED_TABLES.includes(name)) continue;
+    // The search index, moments and threads are rebuilt from entries after import,
+    // and which reminders this device has shown stays on this device.
+    if (DERIVED_TABLES.includes(name) || DEVICE_TABLES.includes(name)) continue;
     const rows = await db.table(name).toArray();
     tables[name] = name === 'settings' ? rows.filter((r) => !isLockRow(r)) : rows;
   }
@@ -111,6 +116,7 @@ export async function restoreExport(raw: RawExport): Promise<void> {
   const lockRow = await db.settings.get(LOCK_ROW_KEY);
   await db.transaction('rw', TABLE_NAMES.map((n) => db.table(n)), async () => {
     for (const name of TABLE_NAMES) {
+      if (DEVICE_TABLES.includes(name)) continue;
       await db.table(name).clear();
       let rows = raw.tables[name];
       if (!Array.isArray(rows)) continue;

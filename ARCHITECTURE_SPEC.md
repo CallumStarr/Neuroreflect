@@ -14,8 +14,9 @@ This spec has two layers, kept deliberately separate:
 
 ### Clean-room boundaries kept during analysis
 
-- No script source was read. Bundles were inventoried by file name and size only.
-- No storage values were read. The inspection tool reports key names with values redacted.
+- Web bundles (A, B, C) were inventoried by file name and size only; no script source was read.
+- One exception, corrected in v0.4: rea statically analysed two of D's main-process scripts, `preload.cjs` and `attachment-worker.cjs`. The analysis produced structure counts only (15 API namespaces, about 100 members, about 158 IPC channels). No code was copied, quoted or kept, and no channel or function names were extracted. Earlier versions of this section said no script source was read, which was wrong for D.
+- No storage values were read. The inspection tool reports key names with values redacted. D's database file was opened only far enough to read its header, which showed the file is encrypted (Section 1.4).
 - Network captures retained **field names and types only**, never values. No prompt text, entry text or AI output was captured or reproduced.
 - No authentication, paywall or server control was touched. All traffic was the user's own session in their own browser.
 - No branding, copy, styling or assets are carried into the design layer.

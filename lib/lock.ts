@@ -6,7 +6,7 @@
 import type { Table } from 'dexie';
 import nacl from 'tweetnacl';
 import { DEFAULT_SETTINGS, TABLE_NAMES, getDB } from './db';
-import { LOCK_ROW_KEY, LockedError, WAS_SEALED, getLockState, lockInternals, type LockState } from './lock-core';
+import { LOCK_ROW_KEY, LockedError, SCHEDULE_ROW_KEY, WAS_SEALED, getLockState, lockInternals, type LockState } from './lock-core';
 import { fromB64, sleep, toB64 } from './util';
 
 export { LockedError, SealError, getLockState, subscribeLock, type LockState } from './lock-core';
@@ -100,6 +100,11 @@ export function registerBeforeLock(fn: BeforeLock): () => void {
 async function runBeforeLock(): Promise<void> {
   const all = Promise.allSettled([...beforeLockHooks].map((fn) => fn()));
   await Promise.race([all, sleep(4000)]);
+}
+
+/** Saves unsaved work without locking, for example before the app quits. */
+export function runBeforeLockHooks(): Promise<void> {
+  return runBeforeLock();
 }
 
 // ---------- tabs ----------
@@ -323,9 +328,11 @@ export async function sealStragglers(): Promise<number> {
   let count = 0;
   await db.transaction('rw', allTables(), async () => {
     for (const [name, rows] of await readAll()) {
-      const plain = rows.filter(
-        (r) => !(r as Record<symbol, unknown>)[WAS_SEALED] && !(name === 'settings' && (r as { key?: string }).key === LOCK_ROW_KEY),
-      );
+      const plain = rows.filter((r) => {
+        if ((r as Record<symbol, unknown>)[WAS_SEALED]) return false;
+        const key = name === 'settings' ? (r as { key?: string }).key : undefined;
+        return key !== LOCK_ROW_KEY && key !== SCHEDULE_ROW_KEY;
+      });
       if (plain.length) {
         count += plain.length;
         await db.table(name).bulkPut(plain);

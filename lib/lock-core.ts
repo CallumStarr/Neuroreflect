@@ -18,6 +18,13 @@ export type LockState = 'off' | 'locked' | 'unlocked';
 /** Settings row holding the lock metadata. Stored unsealed so it can be read while locked. */
 export const LOCK_ROW_KEY = 'lock';
 
+/**
+ * Settings row holding only the times of upcoming reminders, with opaque ids
+ * and no titles, so a locked journal can still say "You have a reminder" on
+ * time. Stored unsealed, like the dates the indexes already reveal.
+ */
+export const SCHEDULE_ROW_KEY = 'schedule';
+
 const SEALED = '$sealed';
 /** Marks objects that were opened from an envelope (non-enumerable, never stored). */
 export const WAS_SEALED = Symbol('neuroreflect.wasSealed');
@@ -103,7 +110,9 @@ export function isSealed(value: unknown): boolean {
 }
 
 function isExempt(table: string, value: unknown): boolean {
-  return table === 'settings' && (value as { key?: unknown } | null)?.key === LOCK_ROW_KEY;
+  if (table !== 'settings') return false;
+  const key = (value as { key?: unknown } | null)?.key;
+  return key === LOCK_ROW_KEY || key === SCHEDULE_ROW_KEY;
 }
 
 function plainFieldsOf(schema: DBCoreTableSchema): Set<string> {

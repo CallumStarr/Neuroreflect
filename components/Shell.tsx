@@ -3,19 +3,26 @@
 import { Component, useEffect, useState, type ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getDB, loadSettings } from '@/lib/db';
-import { LockedError, initLock, lockNow, readLockMeta } from '@/lib/lock';
+import { onDesktopEvent, quitApp, setDesktopPrefs } from '@/lib/desktop';
+import { LockedError, getLockState, initLock, lockNow, readLockMeta, runBeforeLockHooks } from '@/lib/lock';
+import { runContentMigrations } from '@/lib/migrations';
 import { seedIfEmpty } from '@/lib/seed';
 import { memoryIsStale, rebuildMemoryArtifacts } from '@/lib/memory';
 import { isDesktop } from '@/lib/platform';
-import { useUI } from '@/lib/store';
+import { TAB_ORDER, useUI } from '@/lib/store';
 import { localDayOf } from '@/lib/util';
+import HelpPanel from './HelpPanel';
 import LockScreen from './LockScreen';
+import QuickCapture from './QuickCapture';
 import Sidebar from './Sidebar';
+import Toasts from './Toasts';
 import Studio from './studio/Studio';
 import Dashboard from './dashboard/Dashboard';
 import MemoryView from './graph/MemoryView';
+import PlannerView from './planner/PlannerView';
 import Settings from './settings/Settings';
 import { useLockState } from './useLockState';
+import { useReminders } from './useReminders';
 
 // Offline cache for the browser build (public/sw.js). The desktop app's files are
 // already on the computer, so it registers none: WebView2 serves them through
@@ -49,6 +56,7 @@ function bootOnce() {
   if (!bootPromise) {
     bootPromise = (async () => {
       await seedIfEmpty();
+      await runContentMigrations();
       if (await memoryIsStale()) await rebuildMemoryArtifacts();
       const todayDraft = await getDB().entries.where('localDay').equals(localDayOf()).filter((e) => e.status === 'draft').first();
       return { todayDraftId: todayDraft?.id ?? null };
@@ -94,11 +102,39 @@ class ViewBoundary extends Component<{ children: ReactNode }, { error: Error | n
 }
 
 export default function Shell() {
-  const { tab, ready, setReady, setSettings, openEntry, setTab } = useUI();
+  const { tab, ready, setReady, setSettings, openEntry, setTab, helpOpen, setHelpOpen, captureOpen, setCaptureOpen, settings } = useUI();
   const lock = useLockState();
   const [opened, setOpened] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useOfflineShell();
+  useReminders(opened, lock);
+
+  // The desktop side needs to know the tray, sign-in and shortcut settings.
+  const { keepInTray, globalCapture, startAtLogin } = settings.planner;
+  useEffect(() => {
+    if (!ready) return;
+    void setDesktopPrefs({ keepInTray, globalCapture, startAtLogin });
+  }, [ready, keepInTray, globalCapture, startAtLogin]);
+
+  // Desktop events: quick capture from the tray or the shortcut, locking when
+  // the window goes to the tray, and saving everything before quitting.
+  useEffect(() => {
+    if (!isDesktop()) return;
+    const offs: (() => void)[] = [];
+    void onDesktopEvent('quick-capture', () => {
+      if (getLockState() !== 'locked') useUI.getState().setCaptureOpen(true);
+    }).then((u) => offs.push(u));
+    void onDesktopEvent('open-planner', () => useUI.getState().setTab('planner')).then((u) => offs.push(u));
+    void onDesktopEvent('window-hidden', () => {
+      if (getLockState() === 'unlocked') void lockNow();
+      else void runBeforeLockHooks();
+    }).then((u) => offs.push(u));
+    void onDesktopEvent('quit-requested', async () => {
+      await runBeforeLockHooks();
+      await quitApp();
+    }).then((u) => offs.push(u));
+    return () => offs.forEach((off) => off());
+  }, []);
 
   useEffect(() => {
     openOnce().then(
@@ -154,17 +190,28 @@ export default function Shell() {
     };
   }, [lock, autoLockMinutes]);
 
-  // Alt+1..4 switches views from anywhere; Alt+L locks.
+  // Alt+1..5 switches views from anywhere; Alt+L locks; Alt+C opens quick
+  // capture; F1 opens help, which works even on the lock screen.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'F1') {
+        e.preventDefault();
+        setHelpOpen(true);
+        return;
+      }
       if (!e.altKey || e.ctrlKey || e.metaKey) return;
       if (e.key.toLowerCase() === 'l' || e.code === 'KeyL') {
         e.preventDefault();
         void lockNow();
         return;
       }
-      const map: Record<string, typeof tab> = { '1': 'studio', '2': 'dashboard', '3': 'graph', '4': 'settings' };
-      const next = map[e.key];
+      if ((e.key.toLowerCase() === 'c' || e.code === 'KeyC') && getLockState() !== 'locked' && useUI.getState().ready) {
+        e.preventDefault();
+        setCaptureOpen(true);
+        return;
+      }
+      const index = Number(e.code?.startsWith('Digit') ? e.code.slice(5) : e.key) - 1;
+      const next = TAB_ORDER[index];
       if (next) {
         e.preventDefault();
         setTab(next);
@@ -172,7 +219,7 @@ export default function Shell() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setTab]);
+  }, [setTab, setHelpOpen, setCaptureOpen]);
 
   if (error) {
     return (
@@ -188,7 +235,15 @@ export default function Shell() {
     );
   }
 
-  if (opened && lock === 'locked') return <LockScreen />;
+  if (opened && lock === 'locked') {
+    return (
+      <>
+        <LockScreen onHelp={() => setHelpOpen(true)} />
+        {helpOpen && <HelpPanel onClose={() => setHelpOpen(false)} />}
+        <Toasts />
+      </>
+    );
+  }
 
   if (!opened || !ready) {
     return <div className="flex h-screen items-center justify-center bg-ink-950 font-serif text-lg text-paper-500">Opening your journal</div>;
@@ -200,11 +255,15 @@ export default function Shell() {
       <main className="relative order-1 min-h-0 min-w-0 flex-1 md:order-2">
         <ViewBoundary key={tab}>
           {tab === 'studio' && <Studio />}
+          {tab === 'planner' && <PlannerView />}
           {tab === 'dashboard' && <Dashboard />}
           {tab === 'graph' && <MemoryView />}
           {tab === 'settings' && <Settings />}
         </ViewBoundary>
       </main>
+      {captureOpen && <QuickCapture onClose={() => setCaptureOpen(false)} />}
+      {helpOpen && <HelpPanel onClose={() => setHelpOpen(false)} />}
+      <Toasts />
     </div>
   );
 }

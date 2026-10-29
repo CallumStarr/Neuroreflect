@@ -27,6 +27,11 @@ import { clamp } from './util';
 
 export const ENGINE_VERSION = '1.0.0';
 
+// Names of the two pattern nodes. Earlier versions called them "Rumination
+// loop" and "Experiential avoidance"; lib/migrations.ts renames stored nodes.
+export const CIRCLING_LABEL = 'Circling';
+export const AVOIDANCE_LABEL = 'Avoidance';
+
 // ---------- tokenising ----------
 
 function normalise(text: string): string {
@@ -351,8 +356,8 @@ export function extractEntities(blocks: Block[], knownPeople: string[], coreValu
   for (const span of findFusionSpans(blocks)) {
     if (!span.defused) push({ kind: 'distortion', label: patternName(span.pattern), blockId: span.blockId, start: span.start, end: span.end, source: 'heuristic' });
   }
-  if (telemetry.ruminationFlag) push({ kind: 'pattern', label: 'Rumination loop', blockId: null, start: 0, end: 0, source: 'heuristic' });
-  if (telemetry.avoidanceHits.length >= 2) push({ kind: 'pattern', label: 'Experiential avoidance', blockId: null, start: 0, end: 0, source: 'heuristic' });
+  if (telemetry.ruminationFlag) push({ kind: 'pattern', label: CIRCLING_LABEL, blockId: null, start: 0, end: 0, source: 'heuristic' });
+  if (telemetry.avoidanceHits.length >= 2) push({ kind: 'pattern', label: AVOIDANCE_LABEL, blockId: null, start: 0, end: 0, source: 'heuristic' });
 
   return out;
 }

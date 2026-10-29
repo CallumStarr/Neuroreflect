@@ -17,7 +17,7 @@ interface Item {
 export default function LensPicker({ onPick, onClose }: { onPick: (a: PaletteAction) => void; onClose: () => void }) {
   const items: Item[] = useMemo(
     () => [
-      ...LENSES.map((l) => ({ id: l.id, label: l.label, hint: l.blurb, action: { kind: 'lens', lens: l.id } as PaletteAction })),
+      ...LENSES.map((l) => ({ id: l.id, label: l.label, hint: l.perspective ? `${l.blurb}. A perspective` : l.blurb, action: { kind: 'lens', lens: l.id } as PaletteAction })),
       { id: 'deeper', label: 'Go deeper', hint: 'One Socratic question', action: { kind: 'deeper' }, shortcut: 'Ctrl Enter' },
       { id: 'stepback', label: 'Step back', hint: 'Third-person or a year-from-now view', action: { kind: 'stepback' } },
       { id: 'forecast', label: 'Forecast an upcoming event', hint: 'Predict how it will feel, check it later', action: { kind: 'forecast' } },
